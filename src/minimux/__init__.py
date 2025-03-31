@@ -1,9 +1,9 @@
-import threading
 import curses
+import threading
 
 from minimux.colour import ColourManager
+from minimux.config import Command, Config, Element, Panel
 from minimux.runner import Runner
-from minimux.config import Config, Element, Panel, Command
 
 
 class MiniMux:

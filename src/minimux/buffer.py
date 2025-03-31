@@ -1,5 +1,5 @@
-from collections import deque
 import threading
+from collections import deque
 from typing import Generator
 
 from minimux.rules import Rule
@@ -45,7 +45,7 @@ class Buffer:
             if maxrows is not None:
                 self.maxrows = maxrows
 
-            buf = deque(maxlen=maxrows)
+            buf: deque[tuple[str, int]] = deque(maxlen=maxrows)
             for line in self.buf:
                 buf.append((line[0][: self.maxcols], line[1]))
             self.buf = buf

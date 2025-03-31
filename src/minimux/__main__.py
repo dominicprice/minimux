@@ -1,5 +1,6 @@
-import click
 from pathlib import Path
+
+import click
 
 from minimux import MiniMux
 from minimux.config import Config, MiniMuxConfigParser

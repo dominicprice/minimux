@@ -1,13 +1,13 @@
-import curses
 import configparser
+import curses
 import re
 import shlex
-from typing import TextIO
 from dataclasses import dataclass
+from typing import TextIO
 
+import minimux.utils as utils
 from minimux.colour import ColourManager
 from minimux.rules import LiteralRule, RegexRule, Rule
-import minimux.utils as utils
 
 
 @dataclass

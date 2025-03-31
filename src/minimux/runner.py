@@ -1,8 +1,7 @@
-import threading
-import subprocess
 import curses
+import subprocess
+import threading
 from typing import Any, Callable, TypeAlias
-
 
 from minimux.buffer import Buffer
 from minimux.colour import ColourManager
