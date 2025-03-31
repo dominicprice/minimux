@@ -12,7 +12,7 @@ on:
 jobs:
   static_checks:
     uses: ./.github/workflows/static_checks.yaml
-		
+
   build_wheel:
     name: Build wheel
     needs: [static_checks]
