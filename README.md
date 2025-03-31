@@ -4,7 +4,7 @@ A lightweight non-interactive terminal multiplexer.
 
 ## What is minimux?
 
-Minimum allows you to run multiple programs in a single terminal
+Minimux allows you to run multiple programs in a single terminal
 window. If this is useful for you, you probably already know it, but here are some reasons why it might be useful anyway:
 
 * You are developing a program which requires running several
@@ -330,4 +330,4 @@ Colours can be defined in any of the following ways:
 * Using a builtin colour name: `black`, `blue`, `cyan`, `green`,
   `magenta`, `red`, `white` or `yellow`
 * Using a hex code, e.g. `#fa346f`
-* Using an rgb coe, e.g. `rgb(100, 23, 46)`
+* Using an rgb code, e.g. `rgb(100, 23, 46)`
