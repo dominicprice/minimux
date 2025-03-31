@@ -13,6 +13,17 @@ format:
 	poetry run black \
 		src/minimux
 
+.PHONY: formatcheck
+formatcheck:
+	poetry run isort \
+		--tc \
+		--profile black \
+		--check-only \
+		src/minimux
+	poetry run black \
+		--check \
+		src/minimux
+
 .PHONY: test
 test:
 	poetry run pytest \

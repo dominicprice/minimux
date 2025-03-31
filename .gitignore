@@ -1,4 +1,5 @@
 .pytest_cache/
+.mypy_cache/
 pyrightconfig.json
 *.pyc
 __pycache__/

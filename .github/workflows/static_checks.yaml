@@ -1,0 +1,43 @@
+name: static_checks
+
+on: [push]
+
+jobs:
+  lint:
+    name: Lint Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: pipx install poetry
+      - name: Install minimux
+        run: poetry install
+      - name: Run MyPy
+        run: make lint
+
+  coverage:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: pipx install poetry
+      - name: Install minimux
+        run: poetry install
+      - name: Run tests
+        run: make test
+
+  format:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: pipx install poetry
+	  - name: Install minimux
+      - name: Check formatting
+	    run: make formatcheck
