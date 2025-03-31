@@ -8,8 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install dependencies
         run: pipx install poetry
       - name: Install minimux
@@ -22,8 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install dependencies
         run: pipx install poetry
       - name: Install minimux
@@ -39,5 +35,6 @@ jobs:
       - name: Install dependencies
         run: pipx install poetry
 	  - name: Install minimux
+	    run: poetry install
       - name: Check formatting
 	    run: make formatcheck
