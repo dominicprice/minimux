@@ -2,17 +2,8 @@ from io import StringIO
 import curses
 import re
 
-from minimux.config import Config, Panel, Command
-from minimux.colour import ColourManager
+from minimux.config import Attr, Config, Panel, Command
 from minimux.rules import LiteralRule, RegexRule
-
-
-class MockColourManager(ColourManager):
-    def make_pair(self, fg, bg):
-        return 1
-
-    def parse_colour(self, colour):
-        return 1
 
 
 def test_config():
@@ -59,16 +50,14 @@ def test_config():
         ignorecase = true
     """
 
-    cm = MockColourManager()
-
     StringIO(ini)
-    config = Config.from_file(StringIO(ini), cm)
+    config = Config.from_file(StringIO(ini))
 
     error_rule = RegexRule("error", re.ASCII)
-    error_attr = curses.A_BOLD | curses.A_UNDERLINE | 1
+    error_attr = Attr(fg="#5a4a3a", bold=True, underline=True)
 
     warn_rule = LiteralRule("warn", True)
-    warn_attr = 0
+    warn_attr = Attr()
 
     assert config.title == "Example Minimux"
     content = config.content

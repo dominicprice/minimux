@@ -12,3 +12,8 @@ format:
 		src/minimux
 	poetry run black \
 		src/minimux
+
+.PHONY: test
+test:
+	poetry run pytest \
+		tests
