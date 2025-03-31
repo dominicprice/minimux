@@ -33,15 +33,9 @@ class Runner:
     def init(self, stdscr: "curses._CursesWindow", bounds: WindowBounds):
         with self.lock:
             if self.win is not None:
-                self.win.touchwin()
-                self.win.clear()
-                self.win.erase()
-                self.win.refresh()
                 del self.win
             self.win = stdscr.subwin(*bounds)
-            self.win.bkgdset(self.bkgd)
-            self.win.touchwin()
-            self.win.refresh()
+            self.win.bkgdset(" ", self.bkgd)
             self.buf.resize(maxrows=bounds[0], maxcols=bounds[1])
         self.flush()
 
