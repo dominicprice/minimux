@@ -113,7 +113,6 @@ class MiniMux:
             res: list[Runner] = []
             i = 0
             for child in panel.children:
-                subrange_x = (range_x[0] + 1, range_x[1])
                 subrange_y = (o + i * subh, o + (i + child.weight) * subh)
                 if i == len(panel.children) - 1:
                     subrange_y = (subrange_y[0], range_y[1])
@@ -126,7 +125,7 @@ class MiniMux:
                     )
                     subrange_y = (subrange_y[0] + 1, subrange_y[1])
                 i += child.weight
-                res += self.init_content(stdscr, child, subrange_y, subrange_x)
+                res += self.init_content(stdscr, child, subrange_y, range_x)
         else:
             i = 0
             o = range_x[0]
@@ -144,7 +143,7 @@ class MiniMux:
                         subrange_x[0],
                         range_y[1] - range_y[0],
                     )
-                    # subrange_x = (subrange_x[0] + 1, subrange_x[1])
+                    subrange_x = (subrange_x[0] + 1, subrange_x[1])
                 res += self.init_content(stdscr, child, subrange_y, subrange_x)
                 i += child.weight
 
