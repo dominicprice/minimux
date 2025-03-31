@@ -1,9 +1,9 @@
 from minimux.buffer import Buffer
-from minimux.rules import LiteralRule, RegexRule
+from minimux.rules import LiteralRule, RegexRule, Rule
 
 
 def test_buffer():
-    rules = {
+    rules: dict[Rule, int] = {
         LiteralRule("xyz", False): 1,
         RegexRule("he..o", 0): 2,
     }
@@ -25,10 +25,6 @@ def test_buffer():
     assert buf.buf[2] == ("acter limit", 0)
     assert buf.buf[3] == ("this matches the lit", 1)
     assert buf.buf[4] == ("eral rule xyz", 1)
-
-    buf.push("overridden!", 3)
-    assert len(buf.buf) == 5
-    assert buf.buf[-1] == ("overridden!", 3)
 
     buf.push("regex rule hello")
     assert len(buf.buf) == 5

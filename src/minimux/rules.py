@@ -3,8 +3,10 @@ import re
 
 
 class Rule(abc.ABC):
+    @abc.abstractmethod
     def matches(self, line: str) -> bool: ...
 
+    @abc.abstractmethod
     def __hash__(self) -> int: ...
 
 

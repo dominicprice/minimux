@@ -4,6 +4,7 @@ import unittest.mock
 
 @unittest.mock.patch("curses.init_color", lambda *args, **kwargs: 0)
 @unittest.mock.patch("curses.init_pair", lambda *args, **kwargs: 0)
+@unittest.mock.patch("curses.color_pair", lambda *args, **kwargs: 0)
 def test_colour():
     cm = ColourManager()
     cm.make_pair(None, None)

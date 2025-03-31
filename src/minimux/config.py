@@ -1,13 +1,13 @@
-import curses
 import configparser
+import curses
 import re
 import shlex
+from dataclasses import dataclass
 from typing import TextIO
-from dataclasses import dataclass, field
 
+import minimux.utils as utils
 from minimux.colour import ColourManager
 from minimux.rules import LiteralRule, RegexRule, Rule
-import minimux.utils as utils
 
 
 @dataclass
@@ -54,6 +54,7 @@ class Attr:
 
 @dataclass
 class Element:
+    name: str
     attr: Attr
     weight: int
 
@@ -82,18 +83,20 @@ class MiniMuxConfigParser(configparser.ConfigParser):
     def create_panels(
         self,
         section: "configparser.SectionProxy",
+        prefix: str,
         default_attr: Attr,
     ) -> Element:
         if "command" in section:
-            return self.parse_command(section, default_attr)
+            return self.parse_command(section, prefix, default_attr)
         elif "panels" in section:
-            return self.parse_panel(section, default_attr)
+            return self.parse_panel(section, prefix, default_attr)
         else:
             raise ValueError("command or panels must be specified")
 
     def parse_command(
         self,
         section: "configparser.SectionProxy",
+        prefix: str,
         default_attr: Attr,
     ) -> Command:
         title = section.get("title", None)
@@ -102,22 +105,31 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         rules = self.parse_rules(self.aslist(section.get("rules", "")), attr)
         weight = section.getint("weight", 1)
 
-        return Command(attr, weight, shlex.split(command), title, rules)
+        return Command(
+            prefix + ":" + section.name,
+            attr,
+            weight,
+            shlex.split(command),
+            title,
+            rules,
+        )
 
     def parse_panel(
         self,
         section: "configparser.SectionProxy",
+        prefix: str,
         default_attr: Attr,
     ) -> Panel:
+        subprefix = prefix + ":" + section.name
         vertical = section.getboolean("vertical", False)
         attr = default_attr | self.parse_attrs(section)
         children: list[Element] = []
         weight = section.getint("weight", 1)
         for subsection in self.aslist(section["panels"]):
-            child = self.create_panels(self[subsection], attr)
+            child = self.create_panels(self[subsection], subprefix, attr)
             children.append(child)
 
-        return Panel(attr, weight, vertical, children)
+        return Panel(subprefix, attr, weight, vertical, children)
 
     def parse_rules(
         self, rule_names: list[str], default_attr: Attr
@@ -191,16 +203,16 @@ class MiniMuxConfigParser(configparser.ConfigParser):
 
 @dataclass
 class Config:
-    title: str | None = None
-    content: Element = field(default_factory=lambda: Element(Attr(), 1))
-    sep_attr: Attr = field(default_factory=Attr)
-    title_attr: Attr = field(default_factory=Attr)
+    title: str | None
+    content: Element
+    sep_attr: Attr
+    title_attr: Attr
 
     @classmethod
     def from_parser(cls, parser: MiniMuxConfigParser) -> "Config":
         main = parser["main"]
         title = main.pop("title", None)
-        content = parser.create_panels(main, Attr())
+        content = parser.create_panels(main, "", Attr())
         base_attr = parser.parse_attrs(main)
         sep_attrs = base_attr
         if "seperator" in parser:
