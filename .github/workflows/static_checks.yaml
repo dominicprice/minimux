@@ -1,6 +1,6 @@
 name: static_checks
 
-on: [push]
+on: [workflow_call]
 
 jobs:
   lint:
