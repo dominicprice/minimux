@@ -1,0 +1,25 @@
+[project]
+name = "minimux"
+version = "1.0.0"
+description = "A lightweight non-interactive terminal multiplexer."
+authors = [
+    {name = "Dominic Price",email = "dominicprice@outlook.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+dependencies = [
+    "click (>=8.1.8,<9.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "minimux", from = "src"}]
+
+[tool.poetry.scripts]
+minimux = "minimux.__main__:main"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
