@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: pipx install poetry
-	  - name: Install minimux
-	    run: poetry install
+      - name: Install minimux
+        run: poetry install
       - name: Check formatting
-	    run: make formatcheck
+        run: make formatcheck
