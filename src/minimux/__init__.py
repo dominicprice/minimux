@@ -2,7 +2,7 @@ import threading
 import curses
 
 from minimux.colour import ColourManager
-from minimux.runner import Runner
+from minimux.runner import Runner, WindowBounds
 from minimux.config import Config, Element, Panel, Command
 
 
@@ -21,10 +21,58 @@ class MiniMux:
 
     def _run(self, stdscr: "curses._CursesWindow"):
         curses.use_default_colors()
+
+        runners = self.get_runners(self.config.content)
+        bounds = self.init(stdscr)
+        for runner, bounds in zip(runners, bounds):
+            runner.init(stdscr, bounds)
+
+        for runner in runners:
+            runner.start()
+
+        try:
+            # handle user input
+            while True:
+                if stdscr.getch() == curses.KEY_RESIZE:
+                    stdscr.erase()
+                    stdscr.clear()
+                    stdscr.touchwin()
+                    bounds = self.init(stdscr)
+                    for runner, bounds in zip(runners, bounds):
+                        runner.init(stdscr, bounds)
+                    stdscr.touchwin()
+                    stdscr.refresh()
+        except KeyboardInterrupt:
+            # keyboard interrupts are a normal way to exit
+            pass
+        finally:
+            # kill all runners and wait for them to terminate
+            # before exiting curses mode to avoid leaving the
+            # terminal in a bad state
+            rows, cols = stdscr.getmaxyx()
+            wait_fns = [runner.terminate() for runner in runners]
+            stdscr.clear()
+            stdscr.move(rows // 2, 0)
+            stdscr.addstr("Terminating...".center(cols))
+            stdscr.refresh()
+            for wait_fn in wait_fns:
+                wait_fn()
+
+    def get_runners(self, content: Element) -> list[Runner]:
+        if isinstance(content, Panel):
+            res: list[Runner] = []
+            for child in content.children:
+                res += self.get_runners(child)
+            return res
+        elif isinstance(content, Command):
+            return [Runner(content, self.lock, self.cm)]
+        else:
+            raise TypeError
+
+    def init(self, stdscr: "curses._CursesWindow") -> list[WindowBounds]:
         rows, cols = stdscr.getmaxyx()
         stdscr.clear()
 
-        # Title
         start_row = 0
         if self.config.title:
             stdscr.move(0, 0)
@@ -35,49 +83,14 @@ class MiniMux:
             self.hsep(stdscr, 1, 0, cols)
             start_row = 2
 
-        # Content
-        runners = self.init_content(
+        bounds = self.init_content(
             stdscr,
             self.config.content,
             (start_row, rows),
             (0, cols),
         )
-
-        # Ensure content drawn to stdscr is drawn
         stdscr.refresh()
-
-        # start a thread for each runner
-        threads = [
-            threading.Thread(
-                target=r.run,
-                daemon=True,
-            )
-            for r in runners
-        ]
-        for thread in threads:
-            thread.start()
-
-        try:
-            # wait for all runners to exit
-            for thread in threads:
-                thread.join()
-            # keep open but ignore any keypresses
-            while True:
-                stdscr.getch()
-        except KeyboardInterrupt:
-            # keyboard interrupts are a normal way to exit
-            pass
-        finally:
-            # kill all runners and wait for them to terminate
-            # before exiting curses mode to avoid leaving the
-            # terminal in a bad state
-            wait_fns = [runner.terminate() for runner in runners]
-            stdscr.clear()
-            stdscr.move(rows // 2, 0)
-            stdscr.addstr("Terminating...".center(cols))
-            stdscr.refresh()
-            for wait_fn in wait_fns:
-                wait_fn()
+        return bounds
 
     def init_content(
         self,
@@ -85,7 +98,7 @@ class MiniMux:
         content: Element,
         range_y: tuple[int, int],
         range_x: tuple[int, int],
-    ) -> list[Runner]:
+    ) -> list[WindowBounds]:
         """Recursively draw the static components for content and
         return the associated runners for any commands"""
         if isinstance(content, Panel):
@@ -101,7 +114,7 @@ class MiniMux:
         panel: Panel,
         range_y: tuple[int, int],
         range_x: tuple[int, int],
-    ) -> list[Runner]:
+    ) -> list[WindowBounds]:
         """Recursively draw the static components for a panel and
         return the associated runners from any commands"""
         if len(panel.children) == 0:
@@ -110,7 +123,7 @@ class MiniMux:
         if panel.split_vertically:
             o = range_y[0]
             subh = (range_y[1] - range_y[0]) // sum(c.weight for c in panel.children)
-            res: list[Runner] = []
+            res: list[tuple[int, int, int, int]] = []
             i = 0
             for child in panel.children:
                 subrange_y = (o + i * subh, o + (i + child.weight) * subh)
@@ -130,7 +143,7 @@ class MiniMux:
             i = 0
             o = range_x[0]
             subw = (range_x[1] - range_x[0]) // sum(c.weight for c in panel.children)
-            res: list[Runner] = []
+            res: list[tuple[int, int, int, int]] = []
             for child in panel.children:
                 subrange_x = (o + i * subw, o + (i + child.weight) * subw)
                 subrange_y = range_y
@@ -155,23 +168,21 @@ class MiniMux:
         command: Command,
         range_y: tuple[int, int],
         range_x: tuple[int, int],
-    ) -> Runner:
+    ) -> WindowBounds:
         """Draw the static components for a command and return the
-        associated runner"""
+        window dimensions for the command"""
         if command.title is not None:
             stdscr.move(range_y[0], range_x[0])
             stdscr.addstr(
                 command.title.center(range_x[1] - range_x[0]), command.attr(self.cm)
             )
             range_y = (range_y[0] + 1, range_y[1])
-        win = stdscr.subwin(
+        return (
             range_y[1] - range_y[0],
             range_x[1] - range_x[0],
             range_y[0],
             range_x[0],
         )
-        win.bkgd(command.attr(self.cm))
-        return Runner(command, self.lock, self.cm, win)
 
     def hsep(self, stdscr: "curses._CursesWindow", y: int, x: int, n: int):
         """Draw a horizontal seperator line, combining with existing
