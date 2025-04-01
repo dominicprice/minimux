@@ -6,7 +6,6 @@ on:
       bump-type:
         description: 'Bump type'
         required: true
-        default: 'patch'
         type: choice
         options:
         - major
@@ -19,6 +18,9 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
+
+      - name: Setup git user
+        uses: fregante/setup-git-user@v2
 
       - name: Bump version
         id: bump
