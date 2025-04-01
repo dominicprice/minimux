@@ -1,10 +1,10 @@
 import curses
 import threading
 
+import minimux.utils as utils
 from minimux.colour import ColourManager
 from minimux.config import Command, Config, Element, Panel
 from minimux.runner import Runner
-import minimux.utils as utils
 
 
 class MiniMux:
