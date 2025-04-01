@@ -6,8 +6,8 @@ from minimux.colour import ColourManager
 from minimux.config import Command, Config, Element, Panel
 from minimux.runner import Runner
 
-__version__ = "1.0.1"
-__version_info__ = (1, 0, 1)
+__version__ = "1.1.0"
+__version_info__ = (1, 1, 0)
 __author__ = "Dominic Price"
 
 
