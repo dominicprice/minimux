@@ -1,7 +1,6 @@
 name: bump
 
 on:
-  push:
   workflow_dispatch:
     inputs:
       bump-type:
