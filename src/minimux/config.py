@@ -64,11 +64,13 @@ class Command(Element):
     command: list[str]
     title: str | None
     rules: dict[Rule, Attr]
+    shell: bool
+    input: str | None
 
 
 @dataclass
 class Panel(Element):
-    split_vertically: bool
+    vertical: bool
     children: list[Element]
 
 
@@ -104,6 +106,8 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         attr = default_attr | self.parse_attrs(section)
         rules = self.parse_rules(self.aslist(section.get("rules", "")), attr)
         weight = section.getint("weight", 1)
+        shell = section.getboolean("shell", False)
+        input = section.get("input", None)
 
         return Command(
             prefix + ":" + section.name,
@@ -112,6 +116,8 @@ class MiniMuxConfigParser(configparser.ConfigParser):
             shlex.split(command),
             title,
             rules,
+            shell,
+            input,
         )
 
     def parse_panel(
@@ -120,16 +126,16 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         prefix: str,
         default_attr: Attr,
     ) -> Panel:
-        subprefix = prefix + ":" + section.name
+        prefix += ":" + section.name
         vertical = section.getboolean("vertical", False)
         attr = default_attr | self.parse_attrs(section)
         children: list[Element] = []
         weight = section.getint("weight", 1)
         for subsection in self.aslist(section["panels"]):
-            child = self.create_panels(self[subsection], subprefix, attr)
+            child = self.create_panels(self[subsection], prefix, attr)
             children.append(child)
 
-        return Panel(subprefix, attr, weight, vertical, children)
+        return Panel(prefix, attr, weight, vertical, children)
 
     def parse_rules(
         self, rule_names: list[str], default_attr: Attr
