@@ -19,9 +19,6 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
 
-      - name: Setup git user
-        uses: fregante/setup-git-user@v2
-
       - name: Bump version
         id: bump
         uses: callowayproject/bump-my-version@master
