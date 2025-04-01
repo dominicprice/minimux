@@ -24,10 +24,9 @@ jobs:
         uses: callowayproject/bump-my-version@master
         env:
           BUMPVERSION_TAG: "true"
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           args: ${{ inputs.bump-type }}
-          github-token: ${{ secrets.GH_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check
         if: steps.bump.outputs.bumped == 'true'
