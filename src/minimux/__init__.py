@@ -1,6 +1,7 @@
 import curses
 import threading
 
+import minimux.utils as utils
 from minimux.colour import ColourManager
 from minimux.config import Command, Config, Element, Panel
 from minimux.runner import Runner
@@ -91,7 +92,7 @@ class MiniMux:
         range_x: tuple[int, int],
     ):
         """Recursively draw the static components for content and
-        return the associated runners for any commands"""
+        initialise the runners for any commands"""
         if isinstance(content, Panel):
             self.init_panel(stdscr, content, range_y, range_x)
         elif isinstance(content, Command):
@@ -107,11 +108,11 @@ class MiniMux:
         range_x: tuple[int, int],
     ):
         """Recursively draw the static components for a panel and
-        return the associated runners from any commands"""
+        initialise the runners from any commands"""
         if len(panel.children) == 0:
             return []
 
-        if panel.split_vertically:
+        if panel.vertical:
             o = range_y[0]
             subh = (range_y[1] - range_y[0]) // sum(c.weight for c in panel.children)
             i = 0
@@ -156,8 +157,8 @@ class MiniMux:
         range_y: tuple[int, int],
         range_x: tuple[int, int],
     ):
-        """Draw the static components for a command and return the
-        window dimensions for the command"""
+        """Draw the static components for a command initialise the
+        associated runner"""
         if command.title is not None:
             stdscr.move(range_y[0], range_x[0])
             stdscr.addstr(
@@ -178,12 +179,12 @@ class MiniMux:
         """Draw a horizontal seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
-        if x > 0 and stdscr.inch(y, x - 1) == curses.ACS_SBSB:
+        if x > 0 and utils.compare_char(stdscr.inch(y, x - 1), curses.ACS_SBSB):
             x -= 1
             n += 1
         for i in range(n):
             stdscr.move(y, x + i)
-            cross = stdscr.inch(y, x + i) == curses.ACS_SBSB
+            cross = utils.compare_char(stdscr.inch(y, x + i), curses.ACS_SBSB)
             if cross:
                 if i == 0:
                     stdscr.addch(curses.ACS_SSSB, attr)
@@ -199,11 +200,11 @@ class MiniMux:
         """Draw a vertical seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
-        if y > 0 and stdscr.inch(y - 1, x) == curses.ACS_BSBS:
+        if y > 0 and utils.compare_char(stdscr.inch(y - 1, x), curses.ACS_BSBS):
             y -= 1
             n += 1
         for i in range(n):
-            cross = stdscr.inch(y + i, x) == curses.ACS_BSBS
+            cross = utils.compare_char(stdscr.inch(y + i, x), curses.ACS_BSBS)
             stdscr.move(y + i, x)
             if cross:
                 if i == 0:

@@ -62,7 +62,7 @@ def test_config():
     assert config.title == "Example Minimux"
     content = config.content
     assert isinstance(content, Panel)
-    assert content.split_vertically == False
+    assert content.vertical == False
     assert len(content.children) == 2
 
     frontend = content.children[0]
@@ -74,7 +74,7 @@ def test_config():
 
     backend = content.children[1]
     assert isinstance(backend, Panel)
-    assert backend.split_vertically == True
+    assert backend.vertical == True
     assert len(backend.children) == 2
 
     db = backend.children[0]

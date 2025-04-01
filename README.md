@@ -39,8 +39,8 @@ error: GET /doesnotexit.html 404       │WARN: this is a development api
                                        │
                                        ├──────────────────────────────────────
                                        │               Database
-                                       │debug: running database migrations
-                                       │debug: no migrations to run
+                                       │info: running database migrations
+                                       │info: no migrations to run
                                        │
                                        │
 ```
@@ -49,8 +49,7 @@ error: GET /doesnotexit.html 404       │WARN: this is a development api
 ## Installation
 
 Install using the python package manager of your choice, if you have
-`pipx` on your system then simply `pipx install
-git+https://github.com/dominicprice/minimux`
+`pipx` on your system then simply `pipx install minimux`
 
 ## Usage
 

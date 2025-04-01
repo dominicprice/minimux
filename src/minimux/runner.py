@@ -23,11 +23,8 @@ class Runner:
         self.proc: subprocess.Popen[str] | None = None
         self.bkgd = command.attr(colour_manager)
 
-        self.buf = Buffer(
-            0,
-            0,
-            {k: v(colour_manager) for k, v in command.rules.items()},
-        )
+        rules = {r: a(colour_manager) for r, a in command.rules.items()}
+        self.buf = Buffer(0, 0, rules)
 
     def init(self, stdscr: "curses._CursesWindow", bounds: WindowBounds):
         with self.lock:
@@ -49,19 +46,29 @@ class Runner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.PIPE,
+                shell=self.command.shell,
                 text=True,
             )
+
+            assert self.proc.stdout is not None
+            assert self.proc.stdin is not None
         except Exception as e:
             self.buf.push("error: failed to start process: " + str(e))
             self.flush()
             return
 
-        assert self.proc.stdout is not None
+        if self.command.input is not None:
+            self.proc.stdin.write(self.command.input + "\n")
+            self.proc.stdin.flush()
+        self.proc.stdin.close()
 
         while self.proc.poll() is None:
             stdout = self.proc.stdout.readline().rstrip()
             self.buf.push(stdout)
             self.flush()
+
+        for line in self.proc.stdout.readlines():
+            self.buf.push(line.rstrip())
 
         self.buf.push(f"Process exited with status code {self.proc.poll()}")
         self.flush()
@@ -82,5 +89,5 @@ class Runner:
             for i, (line, attr) in enumerate(self.buf):
                 self.win.move(i, 0)
                 self.win.addstr(line, attr)
-            self.win.noutrefresh()
+            self.win.refresh()
             curses.doupdate()

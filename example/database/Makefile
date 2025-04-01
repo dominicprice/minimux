@@ -1,4 +1,4 @@
 .PHONY: dev
 dev:
-	@echo "debug: running database migrations"
-	@echo "debug: no migrations to run"
+	@echo "info: running database migrations"
+	@echo "info: no migrations to run"
