@@ -32,7 +32,11 @@ class Runner:
                 del self.win
             self.win = stdscr.subwin(*bounds)
             self.win.bkgdset(" ", self.bkgd)
-            self.buf.resize(maxrows=bounds[0], maxcols=bounds[1])
+            pt, pr, pb, pl = self.command.padding
+            self.buf.resize(
+                maxrows=bounds[0] - pt - pb,
+                maxcols=bounds[1] - pl - pr,
+            )
         self.flush()
 
     def start(self):
@@ -87,7 +91,10 @@ class Runner:
                 return
             self.win.clear()
             for i, (line, attr) in enumerate(self.buf):
-                self.win.move(i, 0)
+                self.win.move(
+                    i + self.command.padding[0],
+                    self.command.padding[3],
+                )
                 self.win.addstr(line, attr)
             self.win.refresh()
             curses.doupdate()

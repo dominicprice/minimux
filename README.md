@@ -304,6 +304,8 @@ Options which are marked with an asterisk are required for that section.
   * `command: string`* The command to run
   * `rules: list` A comma separated list of the section names denoting
     rules to apply
+  * `title_attr: string` Name of the section defining the attributes of the title
+  * `padding: int | int,int | int,int,int,int` Padding around command output. Either one value for all sides, x value followed by y value or top, right, bottom and left values
   * `element...: Element` Element options
 * `Panel` A 1D arrangement of elements
   * `vertical: bool` If true, subpanels are stacked vertically
