@@ -166,7 +166,8 @@ class MiniMux:
         if command.title is not None:
             stdscr.move(range_y[0], range_x[0])
             stdscr.addstr(
-                command.title.center(range_x[1] - range_x[0]), command.attr(self.cm)
+                command.title.center(range_x[1] - range_x[0]),
+                command.title_attr(self.cm),
             )
             range_y = (range_y[0] + 1, range_y[1])
         self.runners[command.name].init(

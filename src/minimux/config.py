@@ -66,6 +66,8 @@ class Command(Element):
     rules: dict[Rule, Attr]
     shell: bool
     input: str | None
+    padding: tuple[int, int, int, int]
+    title_attr: Attr
 
 
 @dataclass
@@ -104,10 +106,14 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         title = section.get("title", None)
         command = section["command"]
         attr = default_attr | self.parse_attrs(section)
+        title_attr = attr
+        if s := section.get("title_attr", None):
+            title_attr = attr | self.parse_attrs(self[s])
         rules = self.parse_rules(self.aslist(section.get("rules", "")), attr)
         weight = section.getint("weight", 1)
         shell = section.getboolean("shell", False)
         input = section.get("input", None)
+        padding = self.aspadding(section.get("padding", None))
 
         return Command(
             prefix + ":" + section.name,
@@ -118,6 +124,8 @@ class MiniMuxConfigParser(configparser.ConfigParser):
             rules,
             shell,
             input,
+            padding,
+            title_attr,
         )
 
     def parse_panel(
@@ -205,6 +213,18 @@ class MiniMuxConfigParser(configparser.ConfigParser):
 
     def aslist(self, value: str):
         return [v.strip() for v in value.split(",") if v.strip()]
+
+    def aspadding(self, value: str | None) -> tuple[int, int, int, int]:
+        if value is None:
+            return (0, 0, 0, 0)
+        ps = [int(v) for v in value.split(",")]
+        if len(ps) == 1:
+            return (ps[0], ps[0], ps[0], ps[0])
+        elif len(ps) == 2:
+            return (ps[1], ps[0], ps[1], ps[0])
+        elif len(ps) == 4:
+            return (ps[0], ps[1], ps[2], ps[3])
+        raise ValueError("expected p or px,py or pt,pr,pb,pl")
 
 
 @dataclass
