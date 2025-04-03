@@ -1,3 +1,4 @@
+import atexit
 import curses
 import subprocess
 import threading
@@ -54,8 +55,12 @@ class Runner:
                 text=True,
             )
 
-            assert self.proc.stdout is not None
+            # ensure the program is terminated at exit
+            atexit.register(self.proc.kill)
+
+            # ensure we are connected to stdin/stdout
             assert self.proc.stdin is not None
+            assert self.proc.stdout is not None
         except Exception as e:
             self.buf.push("error: failed to start process: " + str(e))
             self.flush()
