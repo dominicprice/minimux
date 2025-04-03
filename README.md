@@ -66,16 +66,14 @@ The configuration file is described here in two ways
 
 ### Guided tutorial
 
-In the `example` directory of this repo you'll find an `app.ini`
-config with three subdirectories `api`, `database` and
+In the `example` directory of this repo you'll find a variety of `.ini`
+config files and three subdirectories `api`, `database` and
 `frontend`. Each directory contains a makefile with the single target
 `dev` which spit out some totally legit looking log messages when run.
 
-You can run the example now by `cd`ing into that directory and running
-`minimux app.ini`, you'll be treated with a bit of an eye-sore but the
-aim is to showcase the features, not to look pretty. In this tutorial
-we will start with a blank config file and work our way up to that
-config.
+You can run the example configs now by `cd`ing into that directory and
+running `minimux CONFIG_FILE`. In this tutorial we will start with a
+blank config file and work our way up to the `tutorial.ini` config.
 
 The problem we are trying to solve is this: to test our app locally we
 need to run the frontend, api and database at the same time. We want

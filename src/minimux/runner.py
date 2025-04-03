@@ -74,7 +74,7 @@ class Runner:
         for line in self.proc.stdout.readlines():
             self.buf.push(line.rstrip())
 
-        self.buf.push(f"Process exited with status code {self.proc.poll()}")
+        self.buf.push(f"** Process exited with status code {self.proc.poll()} **")
         self.flush()
 
     def terminate(self) -> Callable[[], Any]:

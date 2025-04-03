@@ -165,8 +165,13 @@ class MiniMux:
         associated runner"""
         if command.title is not None:
             stdscr.move(range_y[0], range_x[0])
-            stdscr.addstr(
-                command.title.center(range_x[1] - range_x[0]),
+            stdscr.addstr(" " * (range_x[1] - range_x[0]), command.attr(self.cm))
+            self.center(
+                stdscr,
+                command.title,
+                range_y[0],
+                range_x[0],
+                range_x[1] - range_x[0],
                 command.title_attr(self.cm),
             )
             range_y = (range_y[0] + 1, range_y[1])
@@ -179,6 +184,19 @@ class MiniMux:
                 range_x[0],
             ),
         )
+
+    def center(
+        self,
+        win: "curses._CursesWindow",
+        s: str,
+        y: int,
+        x: int,
+        n: int,
+        attr: int,
+    ):
+        pad_left = (n - len(s)) // 2
+        win.move(y, x + pad_left)
+        win.addstr(s, attr)
 
     def hsep(self, stdscr: "curses._CursesWindow", y: int, x: int, n: int):
         """Draw a horizontal seperator line, combining with existing

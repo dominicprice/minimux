@@ -3,4 +3,6 @@ dev:
 	@echo "Starting the api"
 	@echo "INFO: started"
 	@echo "WARN: this is a development api"
-	@sleep 10s
+	@echo "FATAL: an unrecoverable error occurred!"
+	@sleep 1s
+	@false
