@@ -7,7 +7,7 @@ from minimux.config import Config, MiniMuxConfigParser
 
 
 @click.command("minimux")
-@click.option("--version", "-v", is_flag=True)
+@click.version_option(__version__, "--version", "-v")
 @click.argument(
     "config_file",
     type=click.Path(
@@ -15,11 +15,9 @@ from minimux.config import Config, MiniMuxConfigParser
         dir_okay=False,
         path_type=Path,
     ),
+    default=Path("./minimux.ini"),
 )
-def main(config_file: Path, version: bool):
-    if version:
-        print(__version__)
-        exit(0)
+def main(config_file: Path):
     # load config
     parser = MiniMuxConfigParser()
     with open(config_file) as f:
