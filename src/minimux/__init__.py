@@ -25,7 +25,7 @@ class MiniMux:
         """The main entrypoint"""
         curses.wrapper(self._run)
 
-    def _run(self, stdscr: "curses._CursesWindow"):
+    def _run(self, stdscr: "curses.window"):
         curses.curs_set(False)
         curses.use_default_colors()
 
@@ -66,7 +66,7 @@ class MiniMux:
         else:
             raise TypeError
 
-    def init(self, stdscr: "curses._CursesWindow"):
+    def init(self, stdscr: "curses.window"):
         rows, cols = stdscr.getmaxyx()
         stdscr.clear()
 
@@ -90,7 +90,7 @@ class MiniMux:
 
     def init_content(
         self,
-        stdscr: "curses._CursesWindow",
+        stdscr: "curses.window",
         content: Element,
         range_y: tuple[int, int],
         range_x: tuple[int, int],
@@ -106,7 +106,7 @@ class MiniMux:
 
     def init_panel(
         self,
-        stdscr: "curses._CursesWindow",
+        stdscr: "curses.window",
         panel: Panel,
         range_y: tuple[int, int],
         range_x: tuple[int, int],
@@ -156,7 +156,7 @@ class MiniMux:
 
     def init_command(
         self,
-        stdscr: "curses._CursesWindow",
+        stdscr: "curses.window",
         command: Command,
         range_y: tuple[int, int],
         range_x: tuple[int, int],
@@ -187,7 +187,7 @@ class MiniMux:
 
     def center(
         self,
-        win: "curses._CursesWindow",
+        win: "curses.window",
         s: str,
         y: int,
         x: int,
@@ -199,6 +199,7 @@ class MiniMux:
         win.addstr(s, attr)
 
     def hsep(self, stdscr: "curses._CursesWindow", y: int, x: int, n: int):
+    def hsep(self, stdscr: "curses.window", y: int, x: int, n: int):
         """Draw a horizontal seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
@@ -220,6 +221,7 @@ class MiniMux:
         stdscr.noutrefresh()
 
     def vsep(self, stdscr: "curses._CursesWindow", y: int, x: int, n: int):
+    def vsep(self, stdscr: "curses.window", y: int, x: int, n: int):
         """Draw a vertical seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)

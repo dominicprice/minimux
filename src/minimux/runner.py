@@ -20,15 +20,14 @@ class Runner:
     ):
         self.command = command
         self.lock = lock
-        self.win: "curses._CursesWindow | None" = None
+        self.win: "curses.window | None" = None
         self.proc: subprocess.Popen[str] | None = None
         self.bkgd = command.attr(colour_manager)
 
         rules = {r: a(colour_manager) for r, a in command.rules.items()}
-        self.buf = Buffer(0, 0, rules)
         self.buf = Buffer(0, 0, command.strip_ansi, rules)
 
-    def init(self, stdscr: "curses._CursesWindow", bounds: WindowBounds):
+    def init(self, stdscr: "curses.window", bounds: WindowBounds):
         with self.lock:
             if self.win is not None:
                 del self.win
