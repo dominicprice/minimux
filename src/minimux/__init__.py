@@ -198,17 +198,16 @@ class MiniMux:
         win.move(y, x + pad_left)
         win.addstr(s, attr)
 
-    def hsep(self, stdscr: "curses._CursesWindow", y: int, x: int, n: int):
     def hsep(self, stdscr: "curses.window", y: int, x: int, n: int):
         """Draw a horizontal seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
-        if x > 0 and utils.compare_char(stdscr.inch(y, x - 1), curses.ACS_SBSB):
+        if x > 0 and utils.char_eq(stdscr.inch(y, x - 1), curses.ACS_SBSB):
             x -= 1
             n += 1
         for i in range(n):
             stdscr.move(y, x + i)
-            cross = utils.compare_char(stdscr.inch(y, x + i), curses.ACS_SBSB)
+            cross = utils.char_eq(stdscr.inch(y, x + i), curses.ACS_SBSB)
             if cross:
                 if i == 0:
                     stdscr.addch(curses.ACS_SSSB, attr)
@@ -220,16 +219,15 @@ class MiniMux:
                 stdscr.addch(curses.ACS_BSBS, attr)
         stdscr.noutrefresh()
 
-    def vsep(self, stdscr: "curses._CursesWindow", y: int, x: int, n: int):
     def vsep(self, stdscr: "curses.window", y: int, x: int, n: int):
         """Draw a vertical seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
-        if y > 0 and utils.compare_char(stdscr.inch(y - 1, x), curses.ACS_BSBS):
+        if y > 0 and utils.char_eq(stdscr.inch(y - 1, x), curses.ACS_BSBS):
             y -= 1
             n += 1
         for i in range(n):
-            cross = utils.compare_char(stdscr.inch(y + i, x), curses.ACS_BSBS)
+            cross = utils.char_eq(stdscr.inch(y + i, x), curses.ACS_BSBS)
             stdscr.move(y + i, x)
             if cross:
                 if i == 0:
