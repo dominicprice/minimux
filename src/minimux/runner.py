@@ -26,6 +26,7 @@ class Runner:
 
         rules = {r: a(colour_manager) for r, a in command.rules.items()}
         self.buf = Buffer(0, 0, rules)
+        self.buf = Buffer(0, 0, command.strip_ansi, rules)
 
     def init(self, stdscr: "curses._CursesWindow", bounds: WindowBounds):
         with self.lock:

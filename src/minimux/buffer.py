@@ -3,6 +3,7 @@ from collections import deque
 from typing import Generator
 
 from minimux.rules import Rule
+from minimux.utils import strip_ansi
 
 
 class Buffer:
@@ -10,17 +11,22 @@ class Buffer:
         self,
         maxcols: int,
         maxrows: int,
+        strip_ansi: bool,
         rules: dict[Rule, int] | None = None,
     ):
         self.buf: deque[tuple[str, int]] = deque(maxlen=maxrows)
         self.maxcols = maxcols
         self.rules = rules if rules is not None else {}
         self.lock = threading.Lock()
+        self.strip_ansi = strip_ansi
 
     def push(self, data: str):
         with self.lock:
             if self.maxcols == 0:
                 return
+
+            if self.strip_ansi:
+                data = strip_ansi(data)
 
             attr = 0
             for rule, a in self.rules.items():

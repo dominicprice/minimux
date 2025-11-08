@@ -68,6 +68,7 @@ class Command(Element):
     input: str | None
     padding: tuple[int, int, int, int]
     title_attr: Attr
+    strip_ansi: bool
 
 
 @dataclass
@@ -114,6 +115,7 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         shell = section.getboolean("shell", False)
         input = section.get("input", None)
         padding = self.aspadding(section.get("padding", None))
+        strip_ansi = section.getboolean("strip_ansi", False)
 
         return Command(
             prefix + ":" + section.name,
@@ -126,6 +128,7 @@ class MiniMuxConfigParser(configparser.ConfigParser):
             input,
             padding,
             title_attr,
+            strip_ansi,
         )
 
     def parse_panel(
