@@ -1,6 +1,6 @@
 import curses
-from typing import TypeVar
 import re
+from typing import TypeVar
 
 T = TypeVar("T")
 
