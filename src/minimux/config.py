@@ -1,13 +1,13 @@
 import configparser
 import curses
-import re
 import shlex
 from dataclasses import dataclass
-from typing import TextIO
+from typing import Self, TextIO
+
+from pyte.screens import Char
 
 import minimux.utils as utils
 from minimux.colour import ColourManager
-from minimux.rules import LiteralRule, RegexRule, Rule
 
 
 @dataclass
@@ -20,6 +20,43 @@ class Attr:
     reverse: bool | None = None
     standout: bool | None = None
     underline: bool | None = None
+    italic: bool | None = None
+
+    @classmethod
+    def from_char(cls, char: Char) -> Self:
+        # we set the bold flag to true if the colour is bright
+        bold = char.bold
+
+        # parse fg colour - if it is a valid hex string, then prepend a
+        # #. else treat it as a colour name
+        fg = char.fg
+        try:
+            int(fg, base=16)
+            fg = "#" + fg
+        except ValueError:
+            if fg.startswith("bright"):
+                bold = True
+                fg = fg[6:]
+
+        # parse bg in the same way as fg
+        bg = char.bg
+        try:
+            int(bg, base=16)
+            bg = "#" + bg
+        except ValueError:
+            if bg.startswith("bright"):
+                bold = True
+                bg = bg[6:]
+
+        return cls(
+            fg=fg,
+            bg=bg,
+            blink=char.blink,
+            bold=bold,
+            reverse=char.reverse,
+            underline=char.underscore,
+            italic=char.italics,
+        )
 
     def __or__(self, other: object) -> "Attr":
         if not isinstance(other, Attr):
@@ -33,6 +70,7 @@ class Attr:
             reverse=utils.combine(self.reverse, other.reverse),
             standout=utils.combine(self.standout, other.standout),
             underline=utils.combine(self.underline, other.underline),
+            italic=utils.combine(self.italic, other.italic),
         )
 
     def __call__(self, colour_manager: ColourManager):
@@ -49,6 +87,8 @@ class Attr:
             attr |= curses.A_STANDOUT
         if self.underline:
             attr |= curses.A_UNDERLINE
+        if self.italic:
+            attr |= curses.A_ITALIC
         return attr
 
 
@@ -63,12 +103,12 @@ class Element:
 class Command(Element):
     command: list[str]
     title: str | None
-    rules: dict[Rule, Attr]
     shell: bool
     input: str | None
     padding: tuple[int, int, int, int]
     title_attr: Attr
-    strip_ansi: bool
+    no_close_stdin: bool
+    charset: str
 
 
 @dataclass
@@ -110,12 +150,12 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         title_attr = attr
         if s := section.get("title_attr", None):
             title_attr = attr | self.parse_attrs(self[s])
-        rules = self.parse_rules(self.aslist(section.get("rules", "")), attr)
         weight = section.getint("weight", 1)
         shell = section.getboolean("shell", False)
         input = section.get("input", None)
         padding = self.aspadding(section.get("padding", None))
-        strip_ansi = section.getboolean("strip_ansi", False)
+        no_close_stdin = section.getboolean("no_close_stdin", False)
+        charset = section.get("charset", "utf-8")
 
         return Command(
             prefix + ":" + section.name,
@@ -123,12 +163,12 @@ class MiniMuxConfigParser(configparser.ConfigParser):
             weight,
             shlex.split(command),
             title,
-            rules,
             shell,
             input,
             padding,
             title_attr,
-            strip_ansi,
+            no_close_stdin,
+            charset,
         )
 
     def parse_panel(
@@ -148,60 +188,6 @@ class MiniMuxConfigParser(configparser.ConfigParser):
 
         return Panel(prefix, attr, weight, vertical, children)
 
-    def parse_rules(
-        self, rule_names: list[str], default_attr: Attr
-    ) -> dict[Rule, Attr]:
-        rules: dict[Rule, Attr] = {}
-        for rule_name in rule_names:
-            rule, attr = self.parse_rule(rule_name, default_attr)
-            rules[rule] = attr
-        return rules
-
-    def parse_rule(self, rule_name: str, default_attr: Attr) -> tuple[Rule, Attr]:
-        rule = self[rule_name]
-        if "regex" in rule:
-            return self.parse_regex_rule(rule, default_attr)
-        elif "literal" in rule:
-            return self.parse_literal_rule(rule, default_attr)
-        else:
-            raise ValueError("invalid rule: must contain 'regex' or 'literal' option")
-
-    def parse_regex_rule(
-        self,
-        section: "configparser.SectionProxy",
-        default_attr: Attr,
-    ) -> tuple[Rule, Attr]:
-        pattern = section["regex"]
-        flags = re.NOFLAG
-        if section.getboolean("ascii", False):
-            flags |= re.ASCII
-        if section.getboolean("ignorecase", False):
-            flags |= re.IGNORECASE
-        if section.getboolean("locale", False):
-            flags |= re.LOCALE
-        if section.getboolean("multiline", False):
-            flags |= re.MULTILINE
-        if section.getboolean("dotall", False):
-            flags |= re.DOTALL
-        if section.getboolean("verbose", False):
-            flags |= re.VERBOSE
-
-        rule = RegexRule(pattern, flags)
-        attr = default_attr | self.parse_attrs(section)
-        return rule, attr
-
-    def parse_literal_rule(
-        self,
-        section: "configparser.SectionProxy",
-        default_attr: Attr,
-    ) -> tuple[Rule, Attr]:
-        pattern = section["literal"]
-        ignorecase = section.getboolean("ignorecase", False)
-
-        rule = LiteralRule(pattern, ignorecase)
-        attr = default_attr | self.parse_attrs(section)
-        return rule, attr
-
     def parse_attrs(self, section: "configparser.SectionProxy") -> Attr:
         attr = Attr()
         attr.fg = section.get("fg", None)
@@ -212,6 +198,7 @@ class MiniMuxConfigParser(configparser.ConfigParser):
         attr.reverse = section.getboolean("reverse", None)
         attr.standout = section.getboolean("standout", None)
         attr.underline = section.getboolean("underline", None)
+        attr.italic = section.getboolean("italic", None)
         return attr
 
     def aslist(self, value: str):

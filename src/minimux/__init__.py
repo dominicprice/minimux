@@ -1,7 +1,7 @@
 import curses
 import threading
 
-import minimux.utils as utils
+from minimux.utils import Range, WindowBounds, char_eq
 from minimux.colour import ColourManager
 from minimux.config import Command, Config, Element, Panel
 from minimux.runner import Runner
@@ -77,14 +77,14 @@ class MiniMux:
                 self.config.title.center(cols),
                 self.config.title_attr(self.cm),
             )
-            self.hsep(stdscr, 1, 0, cols)
+            self.hsep(stdscr, 1, Range(0, cols))
             start_row = 2
 
         self.init_content(
             stdscr,
             self.config.content,
-            (start_row, rows),
-            (0, cols),
+            Range(start_row, rows),
+            Range(0, cols),
         )
         stdscr.refresh()
 
@@ -92,8 +92,8 @@ class MiniMux:
         self,
         stdscr: "curses.window",
         content: Element,
-        range_y: tuple[int, int],
-        range_x: tuple[int, int],
+        range_y: Range,
+        range_x: Range,
     ):
         """Recursively draw the static components for content and
         initialise the runners for any commands"""
@@ -108,49 +108,39 @@ class MiniMux:
         self,
         stdscr: "curses.window",
         panel: Panel,
-        range_y: tuple[int, int],
-        range_x: tuple[int, int],
+        range_y: Range,
+        range_x: Range,
     ):
         """Recursively draw the static components for a panel and
         initialise the runners from any commands"""
         if len(panel.children) == 0:
-            return []
+            return
 
         if panel.vertical:
-            o = range_y[0]
-            subh = (range_y[1] - range_y[0]) // sum(c.weight for c in panel.children)
+            o = range_y.start
+            subh = (range_y.length) // sum(c.weight for c in panel.children)
             i = 0
             for child in panel.children:
-                subrange_y = (o + i * subh, o + (i + child.weight) * subh)
+                subrange_y = Range.offset(i * subh, i + child.weight, o)
                 if i == len(panel.children) - 1:
-                    subrange_y = (subrange_y[0], range_y[1])
+                    subrange_y = Range(subrange_y.start, range_y.end)
                 if i != 0:
-                    self.hsep(
-                        stdscr,
-                        subrange_y[0],
-                        range_x[0],
-                        range_x[1] - range_x[0],
-                    )
-                    subrange_y = (subrange_y[0] + 1, subrange_y[1])
+                    self.hsep(stdscr, subrange_y.start, range_x)
+                    subrange_y = subrange_y.trim(top=1)
                 i += child.weight
                 self.init_content(stdscr, child, subrange_y, range_x)
         else:
             i = 0
-            o = range_x[0]
-            subw = (range_x[1] - range_x[0]) // sum(c.weight for c in panel.children)
+            o = range_x.start
+            subw = (range_x.length) // sum(c.weight for c in panel.children)
             for child in panel.children:
-                subrange_x = (o + i * subw, o + (i + child.weight) * subw)
+                subrange_x = Range.offset(i * subw, (i + child.weight) * subw, o)
                 subrange_y = range_y
                 if i == len(panel.children) - 1:
-                    subrange_x = (subrange_x[0], range_x[1])
+                    subrange_x = Range(subrange_x.start, range_x.end)
                 if i != 0:
-                    self.vsep(
-                        stdscr,
-                        range_y[0],
-                        subrange_x[0],
-                        range_y[1] - range_y[0],
-                    )
-                    subrange_x = (subrange_x[0] + 1, subrange_x[1])
+                    self.vsep(stdscr, subrange_x.start, range_y)
+                    subrange_x = subrange_x.trim(top=1)
                 self.init_content(stdscr, child, subrange_y, subrange_x)
                 i += child.weight
 
@@ -158,31 +148,25 @@ class MiniMux:
         self,
         stdscr: "curses.window",
         command: Command,
-        range_y: tuple[int, int],
-        range_x: tuple[int, int],
+        range_y: Range,
+        range_x: Range,
     ):
         """Draw the static components for a command initialise the
         associated runner"""
         if command.title is not None:
-            stdscr.move(range_y[0], range_x[0])
-            stdscr.addstr(" " * (range_x[1] - range_x[0]), command.attr(self.cm))
+            stdscr.move(range_y.start, range_x.start)
+            stdscr.addstr(" " * (range_x.length), command.attr(self.cm))
             self.center(
                 stdscr,
                 command.title,
-                range_y[0],
-                range_x[0],
-                range_x[1] - range_x[0],
+                range_y.start,
+                range_x,
                 command.title_attr(self.cm),
             )
-            range_y = (range_y[0] + 1, range_y[1])
+            range_y = range_y.trim(top=1)
         self.runners[command.name].init(
             stdscr,
-            (
-                range_y[1] - range_y[0],
-                range_x[1] - range_x[0],
-                range_y[0],
-                range_x[0],
-            ),
+            WindowBounds.from_ranges(range_y, range_x),
         )
 
     def center(
@@ -190,28 +174,27 @@ class MiniMux:
         win: "curses.window",
         s: str,
         y: int,
-        x: int,
-        n: int,
+        x_range: Range,
         attr: int,
     ):
-        pad_left = (n - len(s)) // 2
-        win.move(y, x + pad_left)
+        pad_left = (x_range.length - len(s)) // 2
+        win.move(y, x_range.start + pad_left)
         win.addstr(s, attr)
 
-    def hsep(self, stdscr: "curses.window", y: int, x: int, n: int):
+    def hsep(self, stdscr: "curses.window", y: int, x_range: Range):
         """Draw a horizontal seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
-        if x > 0 and utils.char_eq(stdscr.inch(y, x - 1), curses.ACS_SBSB):
-            x -= 1
-            n += 1
-        for i in range(n):
-            stdscr.move(y, x + i)
-            cross = utils.char_eq(stdscr.inch(y, x + i), curses.ACS_SBSB)
+        if x_range.start > 0:
+            if char_eq(stdscr.inch(y, x_range.end - 1), curses.ACS_SBSB):
+                x_range = x_range.trim(top=-1, tail=1)
+        for i in x_range.values():
+            stdscr.move(y, i)
+            cross = char_eq(stdscr.inch(y, i), curses.ACS_SBSB)
             if cross:
-                if i == 0:
+                if i == x_range.start:
                     stdscr.addch(curses.ACS_SSSB, attr)
-                elif i == n - 1:
+                elif i == x_range.end - 1:
                     stdscr.addch(curses.ACS_SBSS, attr)
                 else:
                     stdscr.addch(curses.ACS_SSSS, attr)
@@ -219,20 +202,20 @@ class MiniMux:
                 stdscr.addch(curses.ACS_BSBS, attr)
         stdscr.noutrefresh()
 
-    def vsep(self, stdscr: "curses.window", y: int, x: int, n: int):
+    def vsep(self, stdscr: "curses.window", x: int, y_range: Range):
         """Draw a vertical seperator line, combining with existing
         separators to form tees and crosses"""
         attr = self.config.sep_attr(self.cm)
-        if y > 0 and utils.char_eq(stdscr.inch(y - 1, x), curses.ACS_BSBS):
-            y -= 1
-            n += 1
-        for i in range(n):
-            cross = utils.char_eq(stdscr.inch(y + i, x), curses.ACS_BSBS)
-            stdscr.move(y + i, x)
+        if y_range.start > 0:
+            if char_eq(stdscr.inch(y_range.start - 1, x), curses.ACS_BSBS):
+                y_range = y_range.trim(top=-1, tail=1)
+        for i in y_range.values():
+            cross = char_eq(stdscr.inch(i, x), curses.ACS_BSBS)
+            stdscr.move(i, x)
             if cross:
-                if i == 0:
+                if i == y_range.start:
                     stdscr.addch(curses.ACS_BSSS, attr)
-                elif i == n - 1:
+                elif i == y_range.end - 1:
                     stdscr.addch(curses.ACS_SSBS, attr)
                 else:
                     stdscr.addch(curses.ACS_SSSS, attr)

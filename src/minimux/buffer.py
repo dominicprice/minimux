@@ -1,43 +1,52 @@
+from dataclasses import dataclass
 import threading
-from collections import deque
 from typing import Generator
+import pyte
+import pyte.modes
 
-from minimux.rules import Rule
-from minimux.utils import strip_ansi
+from minimux.colour import ColourManager
+from minimux.config import Attr
+from minimux.utils import debug
+
+
+@dataclass
+class RichText:
+    text: str
+    attr: int
+
+
+@dataclass
+class OutputLine:
+    elements: list[RichText]
 
 
 class Buffer:
+    """
+    Holds lines of output of a command. Only enough lines to fill the
+    height of the output space (maxrows) are kept, and lines are split
+    so that each line is at most maxcols in length
+    """
+
     def __init__(
         self,
         maxcols: int,
         maxrows: int,
-        strip_ansi: bool,
-        rules: dict[Rule, int] | None = None,
+        colour_manager: ColourManager,
     ):
-        self.buf: deque[tuple[str, int]] = deque(maxlen=maxrows)
-        self.maxcols = maxcols
-        self.rules = rules if rules is not None else {}
+        self.colour_manager = colour_manager
         self.lock = threading.Lock()
-        self.strip_ansi = strip_ansi
+
+        # virtual terminal
+        self.screen = pyte.Screen(maxcols, maxrows)
+        self.screen.mode.add(pyte.modes.LNM)
+        self.stream = pyte.Stream()
+        self.stream.attach(self.screen)
 
     def push(self, data: str):
+        "appends data to the buffer"
+        debug("sending", data, name="buffer")
         with self.lock:
-            if self.maxcols == 0:
-                return
-
-            if self.strip_ansi:
-                data = strip_ansi(data)
-
-            attr = 0
-            for rule, a in self.rules.items():
-                if rule.matches(data):
-                    attr = a
-                    break
-
-            for line in data.splitlines(keepends=False):
-                while len(line) > 0:
-                    b, line = line[: self.maxcols], line[self.maxcols :]
-                    self.buf.append((b, attr))
+            self.stream.feed(data)
 
     def resize(
         self,
@@ -45,17 +54,24 @@ class Buffer:
         maxcols: int | None = None,
         maxrows: int | None = None,
     ):
+        "resizes the buffer"
+        debug("buffer", "resizing to", maxcols, maxrows)
         with self.lock:
-            if maxcols is not None:
-                self.maxcols = maxcols
-            if maxrows is not None:
-                self.maxrows = maxrows
+            self.screen.resize(maxrows, maxcols)
 
-            buf: deque[tuple[str, int]] = deque(maxlen=maxrows)
-            for line in self.buf:
-                buf.append((line[0][: self.maxcols], line[1]))
-            self.buf = buf
-
-    def __iter__(self) -> Generator[tuple[str, int], None, None]:
+    def __iter__(self) -> Generator[OutputLine, None, None]:
         with self.lock:
-            yield from self.buf
+            for row in range(self.screen.lines):
+                bufline = self.screen.buffer[row]
+                prev_attr = -1
+                line = OutputLine([])
+                for col in range(self.screen.columns):
+                    char = bufline[col]
+                    attr = Attr.from_char(char)(self.colour_manager)
+                    if attr != prev_attr:
+                        rt = RichText(char.data, attr)
+                        line.elements.append(rt)
+                        prev_attr = attr
+                    else:
+                        line.elements[len(line.elements) - 1].text += char.data
+                yield line

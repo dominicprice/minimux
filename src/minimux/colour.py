@@ -8,6 +8,7 @@ def _scale(v: int) -> int:
 class ColourManager:
     def __init__(self):
         self.colours = {
+            "default": -1,
             "black": curses.COLOR_BLACK,
             "blue": curses.COLOR_BLUE,
             "cyan": curses.COLOR_CYAN,
@@ -57,8 +58,9 @@ class ColourManager:
             return self.parse_hex(colour)
         elif colour.startswith("rgb("):
             return self.parse_rgb(colour)
-        else:
-            raise ValueError("invalid colour: " + colour)
+
+        # invalid color, return default
+        return -1
 
     def parse_hex(self, hex_code: str) -> int:
         res = self.next_colour
