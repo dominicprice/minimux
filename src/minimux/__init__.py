@@ -1,10 +1,12 @@
 import curses
 import threading
+from pathlib import Path
 
-from minimux.utils import Range, WindowBounds, char_eq
 from minimux.colour import ColourManager
-from minimux.config import Command, Config, Element, Panel
+from minimux.config import Config
+from minimux.range import Range, Range2d
 from minimux.runner import Runner
+from minimux.utils import char_eq
 
 __version__ = "1.4.0"
 __version_info__ = (1, 4, 0)
@@ -14,31 +16,31 @@ __author__ = "Dominic Price"
 class MiniMux:
     def __init__(
         self,
+        stdscr: "curses.window",
         config: Config,
+        cwd: Path,
     ):
-        self.cm = ColourManager()
+        self.stdscr = stdscr
         self.config = config
         self.lock = threading.Lock()
+        self.cwd = cwd
         self.runners: dict[str, Runner] = {}
+        self.colour_manager = ColourManager()
 
     def run(self):
-        """The main entrypoint"""
-        curses.wrapper(self._run)
-
-    def _run(self, stdscr: "curses.window"):
         curses.curs_set(False)
         curses.use_default_colors()
 
         self.runners = self.get_runners(self.config.content)
         for runner in self.runners.values():
             runner.start()
-        self.init(stdscr)
+        self.init()
 
         try:
             # handle user input
             while True:
-                if stdscr.getch() == curses.KEY_RESIZE:
-                    self.init(stdscr)
+                if self.stdscr.getch() == curses.KEY_RESIZE:
+                    self.init()
         except KeyboardInterrupt:
             # keyboard interrupts are a normal way to exit
             pass
@@ -46,68 +48,69 @@ class MiniMux:
             # kill all runners and wait for them to terminate
             # before exiting curses mode to avoid leaving the
             # terminal in a bad state
-            rows, cols = stdscr.getmaxyx()
+            rows, cols = self.stdscr.getmaxyx()
             wait_fns = [runner.terminate() for runner in self.runners.values()]
-            stdscr.clear()
-            stdscr.move(rows // 2, 0)
-            stdscr.addstr("Terminating...".center(cols))
-            stdscr.refresh()
+            self.stdscr.clear()
+            self.stdscr.move(rows // 2, 0)
+            self.stdscr.addstr("Terminating...".center(cols))
+            self.stdscr.refresh()
             for wait_fn in wait_fns:
                 wait_fn()
 
-    def get_runners(self, content: Element) -> dict[str, Runner]:
-        if isinstance(content, Panel):
+    def get_runners(self, content: Config.Element) -> dict[str, Runner]:
+        if isinstance(content, Config.Panel):
             res: dict[str, Runner] = {}
             for child in content.children:
                 res.update(self.get_runners(child))
             return res
-        elif isinstance(content, Command):
-            return {content.name: Runner(content, self.lock, self.cm)}
+        elif isinstance(content, Config.Command):
+            return {content.name: Runner(content, self.doupdate, self.colour_manager)}
         else:
             raise TypeError
 
-    def init(self, stdscr: "curses.window"):
-        rows, cols = stdscr.getmaxyx()
-        stdscr.clear()
+    def doupdate(self):
+        with self.lock:
+            curses.doupdate()
+
+    def init(self):
+        rows, cols = self.stdscr.getmaxyx()
+        self.stdscr.clear()
 
         start_row = 0
         if self.config.title:
-            stdscr.move(0, 0)
-            stdscr.addstr(
+            self.stdscr.move(0, 0)
+            self.stdscr.addstr(
                 self.config.title.center(cols),
-                self.config.title_attr(self.cm),
+                self.config.title_attr(self.colour_manager),
             )
-            self.hsep(stdscr, 1, Range(0, cols))
+            self.hsep(1, Range(0, cols))
             start_row = 2
 
         self.init_content(
-            stdscr,
             self.config.content,
             Range(start_row, rows),
             Range(0, cols),
         )
-        stdscr.refresh()
+        self.stdscr.refresh()
 
     def init_content(
         self,
-        stdscr: "curses.window",
-        content: Element,
+        content: Config.Element,
         range_y: Range,
         range_x: Range,
     ):
         """Recursively draw the static components for content and
         initialise the runners for any commands"""
-        if isinstance(content, Panel):
-            self.init_panel(stdscr, content, range_y, range_x)
-        elif isinstance(content, Command):
-            self.init_command(stdscr, content, range_y, range_x)
+        if isinstance(content, Config.Panel):
+            self.init_panel(content, range_y, range_x)
+        elif isinstance(content, Config.Command):
+            self.init_command(content, range_y, range_x)
         else:
             raise TypeError
 
     def init_panel(
         self,
-        stdscr: "curses.window",
-        panel: Panel,
+        panel: Config.Panel,
         range_y: Range,
         range_x: Range,
     ):
@@ -121,14 +124,14 @@ class MiniMux:
             subh = (range_y.length) // sum(c.weight for c in panel.children)
             i = 0
             for child in panel.children:
-                subrange_y = Range.offset(i * subh, i + child.weight, o)
+                subrange_y = Range.offset(i * subh, (i + child.weight) * subh, o)
                 if i == len(panel.children) - 1:
                     subrange_y = Range(subrange_y.start, range_y.end)
                 if i != 0:
-                    self.hsep(stdscr, subrange_y.start, range_x)
+                    self.hsep(subrange_y.start, range_x)
                     subrange_y = subrange_y.trim(top=1)
                 i += child.weight
-                self.init_content(stdscr, child, subrange_y, range_x)
+                self.init_content(child, subrange_y, range_x)
         else:
             i = 0
             o = range_x.start
@@ -139,86 +142,71 @@ class MiniMux:
                 if i == len(panel.children) - 1:
                     subrange_x = Range(subrange_x.start, range_x.end)
                 if i != 0:
-                    self.vsep(stdscr, subrange_x.start, range_y)
+                    self.vsep(subrange_x.start, range_y)
                     subrange_x = subrange_x.trim(top=1)
-                self.init_content(stdscr, child, subrange_y, subrange_x)
+                self.init_content(child, subrange_y, subrange_x)
                 i += child.weight
 
     def init_command(
         self,
-        stdscr: "curses.window",
-        command: Command,
+        command: Config.Command,
         range_y: Range,
         range_x: Range,
     ):
         """Draw the static components for a command initialise the
         associated runner"""
         if command.title is not None:
-            stdscr.move(range_y.start, range_x.start)
-            stdscr.addstr(" " * (range_x.length), command.attr(self.cm))
+            self.stdscr.move(range_y.start, range_x.start)
+            self.stdscr.addstr(
+                " " * (range_x.length),
+                command.attr(self.colour_manager),
+            )
             self.center(
-                stdscr,
                 command.title,
                 range_y.start,
                 range_x,
-                command.title_attr(self.cm),
+                command.title_attr(self.colour_manager),
             )
             range_y = range_y.trim(top=1)
-        self.runners[command.name].init(
-            stdscr,
-            WindowBounds.from_ranges(range_y, range_x),
-        )
+        self.runners[command.name].init(self.stdscr, Range2d(range_y, range_x))
 
-    def center(
-        self,
-        win: "curses.window",
-        s: str,
-        y: int,
-        x_range: Range,
-        attr: int,
-    ):
+    def center(self, s: str, y: int, x_range: Range, attr: int):
         pad_left = (x_range.length - len(s)) // 2
-        win.move(y, x_range.start + pad_left)
-        win.addstr(s, attr)
+        self.stdscr.move(y, x_range.start + pad_left)
+        self.stdscr.addstr(s, attr)
 
-    def hsep(self, stdscr: "curses.window", y: int, x_range: Range):
+    def hsep(self, y: int, x_range: Range):
         """Draw a horizontal seperator line, combining with existing
         separators to form tees and crosses"""
-        attr = self.config.sep_attr(self.cm)
+        attr = self.config.sep_attr(self.colour_manager)
+        _, max_x = self.stdscr.getmaxyx()
         if x_range.start > 0:
-            if char_eq(stdscr.inch(y, x_range.end - 1), curses.ACS_SBSB):
-                x_range = x_range.trim(top=-1, tail=1)
+            if char_eq(self.stdscr.inch(y, x_range.start - 1), curses.ACS_SBSB):
+                self.stdscr.move(y, x_range.start - 1)
+                self.stdscr.addch(curses.ACS_SBSB, attr)
+        if x_range.end <= max_x:
+            if char_eq(self.stdscr.inch(y, x_range.end), curses.ACS_SBSB):
+                self.stdscr.move(y, x_range.end)
+                self.stdscr.addch(curses.ACS_SBSB, attr)
         for i in x_range.values():
-            stdscr.move(y, i)
-            cross = char_eq(stdscr.inch(y, i), curses.ACS_SBSB)
-            if cross:
-                if i == x_range.start:
-                    stdscr.addch(curses.ACS_SSSB, attr)
-                elif i == x_range.end - 1:
-                    stdscr.addch(curses.ACS_SBSS, attr)
-                else:
-                    stdscr.addch(curses.ACS_SSSS, attr)
-            else:
-                stdscr.addch(curses.ACS_BSBS, attr)
-        stdscr.noutrefresh()
+            self.stdscr.move(y, i)
+            self.stdscr.addch(curses.ACS_BSBS, attr)
+        self.stdscr.noutrefresh()
 
-    def vsep(self, stdscr: "curses.window", x: int, y_range: Range):
+    def vsep(self, x: int, y_range: Range):
         """Draw a vertical seperator line, combining with existing
         separators to form tees and crosses"""
-        attr = self.config.sep_attr(self.cm)
+        attr = self.config.sep_attr(self.colour_manager)
+        max_y, _ = self.stdscr.getmaxyx()
         if y_range.start > 0:
-            if char_eq(stdscr.inch(y_range.start - 1, x), curses.ACS_BSBS):
-                y_range = y_range.trim(top=-1, tail=1)
+            if char_eq(self.stdscr.inch(y_range.start - 1, x), curses.ACS_BSBS):
+                self.stdscr.move(y_range.start - 1, x)
+                self.stdscr.addch(curses.ACS_BSSS, attr)
+        if y_range.end < max_y:
+            if char_eq(self.stdscr.inch(y_range.end, x), curses.ACS_BSBS):
+                self.stdscr.move(y_range.end, x)
+                self.stdscr.addch(curses.ACS_BSSS, attr)
         for i in y_range.values():
-            cross = char_eq(stdscr.inch(i, x), curses.ACS_BSBS)
-            stdscr.move(i, x)
-            if cross:
-                if i == y_range.start:
-                    stdscr.addch(curses.ACS_BSSS, attr)
-                elif i == y_range.end - 1:
-                    stdscr.addch(curses.ACS_SSBS, attr)
-                else:
-                    stdscr.addch(curses.ACS_SSSS, attr)
-            else:
-                stdscr.addch(curses.ACS_SBSB, attr)
-        stdscr.noutrefresh()
+            self.stdscr.move(i, x)
+            self.stdscr.addch(curses.ACS_SBSB, attr)
+        self.stdscr.noutrefresh()

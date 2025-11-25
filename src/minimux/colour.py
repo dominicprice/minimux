@@ -1,25 +1,78 @@
 import curses
+from dataclasses import dataclass
+import re
+from typing import Self
+
+re_hexcolour = re.compile(r"#([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})")
+re_rgbcolour = re.compile(r"rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 
-def _scale(v: int) -> int:
-    return int(v * 1000 / 256)
+@dataclass(frozen=True)
+class Colour:
+    @staticmethod
+    def new(spec: str) -> "Colour":
+        if m := re_hexcolour.fullmatch(spec):
+            return RGBColour.from_rgb(
+                int(m[1], 16),
+                int(m[2], 16),
+                int(m[3], 16),
+            )
+        elif m := re_rgbcolour.fullmatch(spec):
+            return RGBColour.from_rgb(
+                int(m[1]),
+                int(m[2]),
+                int(m[3]),
+            )
+        return NamedColour(spec)
+
+
+@dataclass(frozen=True)
+class NamedColour(Colour):
+    name: str
+
+
+@dataclass(frozen=True)
+class RGBColour(Colour):
+    r: int
+    g: int
+    b: int
+
+    @classmethod
+    def from_rgb(cls, r: int, g: int, b: int) -> Self:
+        return cls(r * 1000 // 256, g * 1000 // 256, b * 1000 // 256)
+
+
+@dataclass
+class ColourPair:
+    fg: Colour
+    bg: Colour
 
 
 class ColourManager:
     def __init__(self):
-        self.colours = {
-            "default": -1,
-            "black": curses.COLOR_BLACK,
-            "blue": curses.COLOR_BLUE,
-            "cyan": curses.COLOR_CYAN,
-            "green": curses.COLOR_GREEN,
-            "magenta": curses.COLOR_MAGENTA,
-            "red": curses.COLOR_RED,
-            "white": curses.COLOR_WHITE,
-            "yellow": curses.COLOR_YELLOW,
-        }
+        self.colours: dict[Colour, int] = {}
         self.next_colour = 8
         self.colour_pairs = []
+
+        # inbuilt curses colours
+        self.colours[NamedColour("black")] = curses.COLOR_BLACK
+        self.colours[NamedColour("blue")] = curses.COLOR_BLUE
+        self.colours[NamedColour("cyan")] = curses.COLOR_CYAN
+        self.colours[NamedColour("green")] = curses.COLOR_GREEN
+        self.colours[NamedColour("magenta")] = curses.COLOR_MAGENTA
+        self.colours[NamedColour("red")] = curses.COLOR_RED
+        self.colours[NamedColour("white")] = curses.COLOR_WHITE
+        self.colours[NamedColour("yellow")] = curses.COLOR_YELLOW
+
+        # terminal "bright" colours
+        self.add_named_colour("brightblack", 85, 87, 83)
+        self.add_named_colour("brightblue", 124, 158, 203)
+        self.add_named_colour("brightcyan", 112, 223, 224)
+        self.add_named_colour("brightgreen", 158, 224, 85)
+        self.add_named_colour("brightmagenta", 166, 129, 165)
+        self.add_named_colour("brightred", 220, 63, 54)
+        self.add_named_colour("brightwhite", 238, 238, 236)
+        self.add_named_colour("brightyellow", 249, 234, 107)
 
     def make_pair(self, fg: str | int | None, bg: str | int | None) -> int:
         if fg is None and bg is None:
@@ -40,47 +93,41 @@ class ColourManager:
 
         return curses.color_pair(n + 1)
 
-    def parse_colour(self, colour: str | int | None) -> int:
+    def parse_colour(self, spec: str | int | None) -> int:
         # int values are already parsed
-        if isinstance(colour, int):
-            return colour
+        if isinstance(spec, int):
+            return spec
 
         # empty string or none signals default
-        if not colour:
+        if not spec:
             return -1
 
-        # check for cached colours
+        # create colour from spec and attempt to get from cache
+        colour = Colour.new(spec)
         if colour in self.colours:
             return self.colours[colour]
 
-        # try to parse
-        if colour.startswith("#"):
-            return self.parse_hex(colour)
-        elif colour.startswith("rgb("):
-            return self.parse_rgb(colour)
+        # create a new colour if it is an rgb definition
+        if isinstance(colour, RGBColour):
+            return self.add_colour(colour)
 
         # invalid color, return default
         return -1
 
-    def parse_hex(self, hex_code: str) -> int:
-        res = self.next_colour
-        self.next_colour += 1
-        curses.init_color(
-            res,
-            _scale(int(hex_code[1:3], 16)),
-            _scale(int(hex_code[3:5], 16)),
-            _scale(int(hex_code[5:7], 16)),
-        )
+    def add_colour(self, colour: RGBColour) -> int:
+        res = self.get_next_colour_index()
+        curses.init_color(res, colour.r, colour.g, colour.b)
+        self.colours[colour] = res
         return res
 
-    def parse_rgb(self, rgb: str) -> int:
+    def add_named_colour(self, name: str, r: int, g: int, b: int) -> int:
+        res = self.get_next_colour_index()
+        colour = RGBColour.from_rgb(r, g, b)
+        curses.init_color(res, colour.r, colour.g, colour.b)
+        self.colours[NamedColour(name)] = res
+        return res
+
+    def get_next_colour_index(self) -> int:
         res = self.next_colour
         self.next_colour += 1
-        r, g, b = rgb[4:-1].split(",")
-        curses.init_color(
-            res,
-            _scale(int(r)),
-            _scale(int(g)),
-            _scale(int(b)),
-        )
         return res

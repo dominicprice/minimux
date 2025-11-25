@@ -1,44 +1,8 @@
 import curses
-import re
-from typing import Generator, NamedTuple, TypeVar
 import threading
+from typing import TypeVar
 
 T = TypeVar("T")
-
-
-class Range(NamedTuple):
-    start: int
-    end: int
-
-    @classmethod
-    def offset(cls, start: int, end: int, offset: int) -> "Range":
-        return cls(start + offset, end + offset)
-
-    @property
-    def length(self) -> int:
-        return self.end - self.start
-
-    def trim(self, *, top: int = 0, tail: int = 0) -> "Range":
-        return Range(self.start + top, self.end - tail)
-
-    def values(self) -> Generator[int, None, None]:
-        yield from range(self.start, self.end)
-
-
-class WindowBounds(NamedTuple):
-    rows: int
-    cols: int
-    start_row: int
-    start_col: int
-
-    @classmethod
-    def from_ranges(cls, range_y: Range, range_x: Range) -> "WindowBounds":
-        return cls(
-            range_y.length,
-            range_x.length,
-            range_y.start,
-            range_x.start,
-        )
 
 
 def combine(t1: T, t2: T | None) -> T:
@@ -51,6 +15,16 @@ def combine(t1: T, t2: T | None) -> T:
 def char_eq(a: int, b: int) -> bool:
     "returns True if a and b are equal characters, ignoring attributes"
     return (a & curses.A_CHARTEXT) == (b & curses.A_CHARTEXT)
+
+
+def split_list(v: str) -> list[str]:
+    "converts a comma separated string into a list, omitting empty elements"
+    res: list[str] = []
+    for elem in v.split(","):
+        e = elem.strip()
+        if e:
+            res.append(e)
+    return res
 
 
 debug_file = open("debug.txt", "w")

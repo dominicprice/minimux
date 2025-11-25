@@ -1,23 +1,12 @@
-from dataclasses import dataclass
 import threading
 from typing import Generator
+
 import pyte
 import pyte.modes
-
-from minimux.colour import ColourManager
-from minimux.config import Attr
-from minimux.utils import debug
+from pyte.screens import Char
 
 
-@dataclass
-class RichText:
-    text: str
-    attr: int
-
-
-@dataclass
-class OutputLine:
-    elements: list[RichText]
+BUFFER_MAX_SIZE = 10000
 
 
 class Buffer:
@@ -31,10 +20,9 @@ class Buffer:
         self,
         maxcols: int,
         maxrows: int,
-        colour_manager: ColourManager,
     ):
-        self.colour_manager = colour_manager
         self.lock = threading.Lock()
+        self.buf: str = ""
 
         # virtual terminal
         self.screen = pyte.Screen(maxcols, maxrows)
@@ -44,8 +32,10 @@ class Buffer:
 
     def push(self, data: str):
         "appends data to the buffer"
-        debug("sending", data, name="buffer")
         with self.lock:
+            self.buf += data
+            if len(self.buf) > BUFFER_MAX_SIZE:
+                self.buf = self.buf[len(self.buf) - BUFFER_MAX_SIZE :]
             self.stream.feed(data)
 
     def resize(
@@ -55,23 +45,14 @@ class Buffer:
         maxrows: int | None = None,
     ):
         "resizes the buffer"
-        debug("buffer", "resizing to", maxcols, maxrows)
         with self.lock:
             self.screen.resize(maxrows, maxcols)
+            self.screen.erase_in_display(2)
+            self.screen.cursor_position(0, 0)
+            self.stream.feed(self.buf)
 
-    def __iter__(self) -> Generator[OutputLine, None, None]:
+    def lines(self) -> Generator[list[Char], None, None]:
         with self.lock:
             for row in range(self.screen.lines):
                 bufline = self.screen.buffer[row]
-                prev_attr = -1
-                line = OutputLine([])
-                for col in range(self.screen.columns):
-                    char = bufline[col]
-                    attr = Attr.from_char(char)(self.colour_manager)
-                    if attr != prev_attr:
-                        rt = RichText(char.data, attr)
-                        line.elements.append(rt)
-                        prev_attr = attr
-                    else:
-                        line.elements[len(line.elements) - 1].text += char.data
-                yield line
+                yield [bufline[col] for col in range(self.screen.columns)]

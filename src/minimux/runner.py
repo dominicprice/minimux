@@ -1,15 +1,16 @@
 import atexit
 import curses
+import os
 import subprocess
 import threading
-import os
 from typing import Any, Callable
 
+from minimux.attr import Attr
 from minimux.buffer import Buffer
 from minimux.colour import ColourManager
-from minimux.config import Command
-from minimux.utils import WindowBounds, debug
-
+from minimux.config import Config
+from minimux.range import Range2d
+from minimux.utils import debug
 
 MAX_READ_BUFFER = 1024
 
@@ -17,29 +18,36 @@ MAX_READ_BUFFER = 1024
 class Runner:
     def __init__(
         self,
-        command: Command,
-        lock: threading.Lock,
+        command: Config.Command,
+        doupdate: Callable[[], None],
         colour_manager: ColourManager,
     ):
         self.command = command
-        self.lock = lock
+        self.lock = threading.Lock()
+        self.doupdate = doupdate
         self.win: "curses.window | None" = None
         self.proc: subprocess.Popen[str] | None = None
-        self.bkgd = command.attr(colour_manager)
-        self.buf = Buffer(0, 0, colour_manager)
+        self.colour_manager = colour_manager
+        self.buf = Buffer(0, 0)
 
-    def init(self, stdscr: "curses.window", bounds: WindowBounds):
+    def init(self, stdscr: "curses.window", bounds: Range2d):
         with self.lock:
             if self.win is not None:
                 del self.win
-            self.win = stdscr.subwin(*bounds)
-            self.win.bkgdset(" ", self.bkgd)
-            pt, pr, pb, pl = self.command.padding
-            self.buf.resize(
-                maxrows=bounds[0] - pt - pb,
-                maxcols=bounds[1] - pl - pr,
+            self.win = stdscr.subwin(
+                bounds.rows.length,
+                bounds.cols.length,
+                bounds.rows.start,
+                bounds.cols.start,
             )
-        self.write("\n\n\n\n\n\n\n\n")
+            bkgd = self.command.attr(self.colour_manager)
+            self.win.bkgdset(" ", bkgd)
+            self.win.bkgd(" ", bkgd)
+            self.buf.resize(
+                maxrows=bounds.rows.length - self.command.padding.vertical,
+                maxcols=bounds.cols.length - self.command.padding.horizontal - 1,
+            )
+        self.flush()
 
     def start(self):
         t = threading.Thread(target=self.run, daemon=True)
@@ -56,6 +64,7 @@ class Runner:
                 stdin=subprocess.PIPE,
                 shell=self.command.shell,
                 text=True,
+                cwd=self.command.cwd,
             )
 
             # ensure the program is terminated at exit
@@ -81,11 +90,6 @@ class Runner:
         # poll process for output
         fileno = self.proc.stdout.fileno()
         while line := os.read(fileno, MAX_READ_BUFFER):
-            debug(
-                "got output output",
-                line,
-                name=self.command.name,
-            )
             self.write(line)
 
         # ensure process is killed
@@ -115,26 +119,22 @@ class Runner:
             if self.win is None:
                 return
             self.win.clear()
-            debug(
-                "flushing with",
-                self.buf.screen.lines,
-                "x",
-                self.buf.screen.columns,
-                "buffer and ",
-                self.win.getmaxyx(),
-                #     "screen and data",
-                #     "\n" + "\n".join(self.buf.screen.display),
-                name=self.command.name,
-            )
-            for i, line in enumerate(self.buf):
-                self.win.move(
-                    i + self.command.padding[0],
-                    self.command.padding[3],
-                )
-                for rt in line.elements:
-                    try:
-                        self.win.addstr(rt.text, 0)
-                    except curses.error:
-                        pass
-            self.win.refresh()
-            curses.doupdate()
+            for row, line in enumerate(self.buf.lines()):
+                for col, char in enumerate(line):
+                    attr = self.command.attr | Attr.from_char(char)
+                    self.win.move(
+                        self.command.padding.top + row,
+                        self.command.padding.left + col,
+                    )
+                    debug(
+                        "trying to add char '" + char.data + "' with attr",
+                        attr(self.colour_manager),
+                        "to position row =",
+                        row,
+                        "and col =",
+                        col,
+                        name=self.command.name,
+                    )
+                    self.win.addch(char.data, attr(self.colour_manager))
+            self.win.noutrefresh()
+        self.doupdate()
