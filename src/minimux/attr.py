@@ -1,16 +1,17 @@
 import curses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Self
-from minimux.colour import ColourManager
-from minimux.utils import combine
 
 from pyte.screens import Char
+
+from minimux.colour import Colour, DefaultColour, ColourManager
+from minimux.utils import combine
 
 
 @dataclass
 class Attr:
-    fg: str | int | None = None
-    bg: str | int | None = None
+    fg: Colour = field(default_factory=lambda: DefaultColour())
+    bg: Colour = field(default_factory=lambda: DefaultColour())
     blink: bool | None = None
     bold: bool | None = None
     dim: bool | None = None
@@ -21,28 +22,11 @@ class Attr:
 
     @classmethod
     def from_char(cls, char: Char) -> Self:
-        # parse fg colour - if it is a valid hex string, then prepend a
-        # #. else treat it as a colour name
-        fg = None
-        if char.fg != "default":
-            try:
-                int(char.fg, base=16)
-                fg = "#" + char.fg
-            except ValueError:
-                fg = char.fg
-
-        # parse bg in the same way as fg
-        bg = None
-        if char.bg != "default":
-            try:
-                int(char.bg, base=16)
-                bg = "#" + char.bg
-            except ValueError:
-                bg = char.bg
+        "Get the curses attribute of a Char from the pty"
 
         return cls(
-            fg=fg,
-            bg=bg,
+            fg=Colour.new(char.fg),
+            bg=Colour.new(char.bg),
             blink=char.blink or None,
             bold=char.bold or None,
             reverse=char.reverse or None,
@@ -51,11 +35,16 @@ class Attr:
         )
 
     def __or__(self, other: object) -> "Attr":
+        """
+        Combine two attributes, with any values set in other
+        overriding the values in self
+        """
         if not isinstance(other, Attr):
             raise TypeError
+
         return Attr(
-            fg=combine(self.fg, other.fg),
-            bg=combine(self.bg, other.bg),
+            fg=self.fg if other.fg == DefaultColour() else other.fg,
+            bg=self.bg if other.bg == DefaultColour() else other.bg,
             blink=combine(self.blink, other.blink),
             bold=combine(self.bold, other.bold),
             dim=combine(self.dim, other.dim),
@@ -65,10 +54,14 @@ class Attr:
             italic=combine(self.italic, other.italic),
         )
 
-    def __call__(self, colour_manager: ColourManager | None = None):
+    def __call__(self, colour_manager: ColourManager | None = None) -> int:
+        """
+        Convert the attribute into a curses attribute value
+        """
         attr = 0
         if colour_manager is not None:
-            attr = colour_manager.make_pair(self.fg, self.bg)
+            pair = colour_manager.make_pair(self.fg, self.bg)
+            attr = curses.color_pair(pair)
         if self.blink:
             attr |= curses.A_BLINK
         if self.bold:

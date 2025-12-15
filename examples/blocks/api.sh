@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
-echo "Starting the api"
-echo "INFO: started"
-echo "WARN: this is a development api"
+echo "Starting the api..."
 
 while true; do
-	echo "handling request..."
-	sleep 1
+	echo "$(date) handling request..."
+	sleep "$(( (RANDOM % 5) + 2 ))s"
 done

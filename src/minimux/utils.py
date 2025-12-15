@@ -1,6 +1,5 @@
 import curses
-import threading
-from typing import TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -27,11 +26,50 @@ def split_list(v: str) -> list[str]:
     return res
 
 
-debug_file = open("debug.txt", "w")
-debug_lock = threading.Lock()
+class Counter:
+    def __init__(self, min_value: int, max_value: int):
+        self.value = min_value
+        self.min_value = min_value
+        self.max_value = max_value
+
+    def __call__(self) -> int:
+        res = self.value
+        self.value += 1
+        if self.value > self.max_value:
+            self.value = self.min_value
+        return res
+
+    def clamp(self):
+        self.min_value = self.value
 
 
-def debug(*args, name: str | None = None):
-    with debug_lock:
-        debug_file.write("# " + (name or "debug") + "\n")
-        print(*args, file=debug_file)
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+class UniqueDict(Generic[K, V]):
+    """
+    UniqueDict ensures that each value is unique, removing old keys
+    if a new key with the same value is added
+    """
+
+    def __init__(self):
+        self.forward: dict[K, V] = {}
+        self.backward: dict[V, K] = {}
+
+    def __setitem__(self, key: K, value: V):
+        if key in self.forward:
+            del self.backward[self.forward[key]]
+        self.forward[key] = value
+        if value in self.backward:
+            del self.forward[self.backward[value]]
+        self.backward[value] = key
+
+    def __getitem__(self, key: K) -> V:
+        return self.forward[key]
+
+    def __contains__(self, key: K) -> bool:
+        return key in self.forward
+
+    def __len__(self) -> int:
+        return len(self.forward)

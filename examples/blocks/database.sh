@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 
-echo "info: running database migrations"
-echo "debug: no migrations to run"
+echo "active connections: $(( RANDOM % 5 ))"
+echo "queries (last minute): $(( RANDOM % 100 ))"
+echo "average latency: $(( RANDOM % 999))ms"

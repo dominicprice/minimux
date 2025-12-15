@@ -35,7 +35,11 @@ def _main(config_file: Path | None, directory: Path | None):
 
 
 @click.command("minimux")
-@click.version_option(__version__, "--version", "-v")
+@click.version_option(
+    __version__,
+    "--version",
+    "-v",
+)
 @click.option(
     "--directory",
     "-d",
@@ -45,6 +49,13 @@ def _main(config_file: Path | None, directory: Path | None):
         path_type=Path,
     ),
     default=None,
+    help="The directory to set as the cwd for commands. Additionally, if CONFIG_FILE is not set and there is no minimux.ini file in the current directory, this directory will be searched for a minimux.ini file to use",
+)
+@click.option(
+    "--debug",
+    "-g",
+    is_flag=True,
+    help="Display a full traceback when an exception is thrown",
 )
 @click.argument(
     "config_file",
@@ -56,12 +67,16 @@ def _main(config_file: Path | None, directory: Path | None):
     required=False,
     default=None,
 )
-def main(config_file: Path | None, directory: Path | None):
+def main(config_file: Path | None, directory: Path | None, debug: bool):
     try:
         _main(config_file, directory)
     except Exception as e:
+        if debug:
+            raise
         exit("minimux: fatal: " + str(e))
     except:
+        if debug:
+            raise
         exit("minimux: fatal: an unhandled exception occurred")
 
 

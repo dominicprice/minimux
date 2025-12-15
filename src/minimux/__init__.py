@@ -49,13 +49,12 @@ class MiniMux:
             # before exiting curses mode to avoid leaving the
             # terminal in a bad state
             rows, cols = self.stdscr.getmaxyx()
-            wait_fns = [runner.terminate() for runner in self.runners.values()]
+            for runner in self.runners.values():
+                runner.stop()
             self.stdscr.clear()
             self.stdscr.move(rows // 2, 0)
             self.stdscr.addstr("Terminating...".center(cols))
             self.stdscr.refresh()
-            for wait_fn in wait_fns:
-                wait_fn()
 
     def get_runners(self, content: Config.Element) -> dict[str, Runner]:
         if isinstance(content, Config.Panel):

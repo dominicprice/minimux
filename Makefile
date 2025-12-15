@@ -28,3 +28,10 @@ formatcheck:
 test:
 	poetry run pytest \
 		tests
+
+.PHONY: test-verbose
+test-verbose:
+	poetry run pytest \
+		-s \
+		-vvv \
+		tests

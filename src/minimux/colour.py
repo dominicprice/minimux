@@ -1,9 +1,10 @@
 import curses
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Self
+from minimux.utils import Counter, UniqueDict
 
-re_hexcolour = re.compile(r"#([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})")
+re_hexcolour = re.compile(r"#?([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})")
 re_rgbcolour = re.compile(r"rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 
@@ -11,7 +12,9 @@ re_rgbcolour = re.compile(r"rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
 class Colour:
     @staticmethod
     def new(spec: str) -> "Colour":
-        if m := re_hexcolour.fullmatch(spec):
+        if spec == "default":
+            return DefaultColour()
+        elif m := re_hexcolour.fullmatch(spec):
             return RGBColour.from_rgb(
                 int(m[1], 16),
                 int(m[2], 16),
@@ -42,7 +45,12 @@ class RGBColour(Colour):
         return cls(r * 1000 // 256, g * 1000 // 256, b * 1000 // 256)
 
 
-@dataclass
+@dataclass(frozen=True)
+class DefaultColour(Colour):
+    pass
+
+
+@dataclass(frozen=True)
 class ColourPair:
     fg: Colour
     bg: Colour
@@ -50,9 +58,13 @@ class ColourPair:
 
 class ColourManager:
     def __init__(self):
-        self.colours: dict[Colour, int] = {}
-        self.next_colour = 8
-        self.colour_pairs = []
+        self.colours: UniqueDict[Colour, int] = UniqueDict()
+        self.next_colour = Counter(8, curses.COLORS)
+        self.colour_pairs: UniqueDict[ColourPair, int] = UniqueDict()
+        self.next_colour_pair = Counter(1, curses.COLOR_PAIRS)
+
+        # default colour
+        self.colours[DefaultColour()] = -1
 
         # inbuilt curses colours
         self.colours[NamedColour("black")] = curses.COLOR_BLACK
@@ -65,69 +77,48 @@ class ColourManager:
         self.colours[NamedColour("yellow")] = curses.COLOR_YELLOW
 
         # terminal "bright" colours
-        self.add_named_colour("brightblack", 85, 87, 83)
-        self.add_named_colour("brightblue", 124, 158, 203)
-        self.add_named_colour("brightcyan", 112, 223, 224)
-        self.add_named_colour("brightgreen", 158, 224, 85)
-        self.add_named_colour("brightmagenta", 166, 129, 165)
-        self.add_named_colour("brightred", 220, 63, 54)
-        self.add_named_colour("brightwhite", 238, 238, 236)
-        self.add_named_colour("brightyellow", 249, 234, 107)
+        self._init("brightblack", 85, 87, 83)
+        self._init("brightblue", 124, 158, 203)
+        self._init("brightcyan", 112, 223, 224)
+        self._init("brightgreen", 158, 224, 85)
+        self._init("brightmagenta", 166, 129, 165)
+        self._init("brightred", 220, 63, 54)
+        self._init("brightwhite", 238, 238, 236)
+        self._init("brightyellow", 249, 234, 107)
 
-    def make_pair(self, fg: str | int | None, bg: str | int | None) -> int:
-        if fg is None and bg is None:
-            return 0
+        # ensure we don't overwrite the named colours
+        self.next_colour.clamp()
 
-        # colour string to curses colour
-        f = self.parse_colour(fg)
-        b = self.parse_colour(bg)
+    def make_pair(self, fg: Colour, bg: Colour) -> int:
+        "Returns a curses colour pair id for the given colours"
+        pair = ColourPair(fg, bg)
 
-        try:
-            # try to find cached value
-            n = self.colour_pairs.index((f, b))
-        except ValueError:
-            # create new colour pair and cache
-            n = len(self.colour_pairs)
-            curses.init_pair(n + 1, f, b)
-            self.colour_pairs.append((f, b))
+        if pair in self.colour_pairs:
+            return self.colour_pairs[pair]
 
-        return curses.color_pair(n + 1)
+        res = self.next_colour_pair()
+        curses.init_pair(res, self.make_colour(fg), self.make_colour(bg))
+        self.colour_pairs[pair] = res
+        return res
 
-    def parse_colour(self, spec: str | int | None) -> int:
-        # int values are already parsed
-        if isinstance(spec, int):
-            return spec
-
-        # empty string or none signals default
-        if not spec:
-            return -1
-
-        # create colour from spec and attempt to get from cache
-        colour = Colour.new(spec)
+    def make_colour(self, colour: Colour) -> int:
+        "Returns a curses colour id for the given colour"
         if colour in self.colours:
             return self.colours[colour]
 
         # create a new colour if it is an rgb definition
         if isinstance(colour, RGBColour):
-            return self.add_colour(colour)
+            res = self.next_colour()
+            curses.init_color(res, colour.r, colour.g, colour.b)
+            self.colours[colour] = res
+            return res
 
         # invalid color, return default
         return -1
 
-    def add_colour(self, colour: RGBColour) -> int:
-        res = self.get_next_colour_index()
-        curses.init_color(res, colour.r, colour.g, colour.b)
-        self.colours[colour] = res
-        return res
-
-    def add_named_colour(self, name: str, r: int, g: int, b: int) -> int:
-        res = self.get_next_colour_index()
+    def _init(self, name: str, r: int, g: int, b: int) -> int:
+        res = self.next_colour()
         colour = RGBColour.from_rgb(r, g, b)
         curses.init_color(res, colour.r, colour.g, colour.b)
         self.colours[NamedColour(name)] = res
-        return res
-
-    def get_next_colour_index(self) -> int:
-        res = self.next_colour
-        self.next_colour += 1
         return res

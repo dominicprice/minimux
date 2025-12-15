@@ -1,16 +1,16 @@
 import atexit
+import time
 import curses
 import os
 import subprocess
 import threading
-from typing import Any, Callable
+from typing import Callable
 
 from minimux.attr import Attr
 from minimux.buffer import Buffer
 from minimux.colour import ColourManager
 from minimux.config import Config
 from minimux.range import Range2d
-from minimux.utils import debug
 
 MAX_READ_BUFFER = 1024
 
@@ -23,14 +23,15 @@ class Runner:
         colour_manager: ColourManager,
     ):
         self.command = command
-        self.lock = threading.Lock()
         self.doupdate = doupdate
         self.win: "curses.window | None" = None
-        self.proc: subprocess.Popen[str] | None = None
         self.colour_manager = colour_manager
-        self.buf = Buffer(0, 0)
+        self.buf = Buffer(0, 0, command.tabsize)
+        self._stopped = threading.Event()
+        self.lock = threading.Lock()
 
     def init(self, stdscr: "curses.window", bounds: Range2d):
+        "Set the curses window for the runner"
         with self.lock:
             if self.win is not None:
                 del self.win
@@ -45,76 +46,106 @@ class Runner:
             self.win.bkgd(" ", bkgd)
             self.buf.resize(
                 maxrows=bounds.rows.length - self.command.padding.vertical,
-                maxcols=bounds.cols.length - self.command.padding.horizontal - 1,
+                maxcols=bounds.cols.length - self.command.padding.horizontal,
             )
-        self.flush()
+        self._flush()
 
     def start(self):
-        t = threading.Thread(target=self.run, daemon=True)
+        "Start the runner in a background thread, returns immediately"
+        t = threading.Thread(target=self._run, daemon=True)
         t.start()
 
-    def run(self):
-        try:
-            # open the subprocess with pipes to stdout and stdin,
-            # redirecting stderr to stdout
-            self.proc = subprocess.Popen(
+    def stop(self):
+        "Terminate the running process"
+        self._stopped.set()
+
+    def _run(self):
+        self._stopped.clear()
+        next_launch = time.time()
+
+        while not self._stopped.wait(next_launch - time.time()):
+            self._clear()
+            next_launch = time.time() + self.command.watch
+
+            # spawn the process
+            proc = subprocess.Popen(
                 self.command.command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.PIPE,
-                shell=self.command.shell,
                 text=True,
                 cwd=self.command.cwd,
             )
 
-            # ensure the program is terminated at exit
-            atexit.register(self.proc.kill)
+            def terminate():
+                if proc.stdout:
+                    proc.stdout.close()
+                if proc.stdin:
+                    proc.stdin.close()
+                proc.terminate()
 
-            # ensure we are connected to stdin/stdout
-            assert self.proc.stdin is not None
-            assert self.proc.stdout is not None
-        except Exception as e:
-            # write error to output buffer
-            self.write("error: failed to start process: " + str(e))
-            return
+            # ensure process is terminated at program exit
+            atexit.register(terminate)
+
+            # if we are watching, ensure it is terminated when we need
+            # the loop to next execute
+            timer: threading.Timer | None = None
+            if self.command.watch > 0:
+                timer = threading.Timer(self.command.watch, terminate)
+                timer.start()
+
+            # poll for process output
+            return_code = self._poll_process(proc)
+
+            # cancel the timer
+            if timer is not None:
+                timer.cancel()
+
+            # unregister terminate function at program exit
+            atexit.unregister(terminate)
+
+            # stop loop if we are not watching the output
+            if self.command.watch <= 0:
+                self._write(f"** Exited with return code {return_code} **")
+                return
+
+    def _poll_process(self, proc: subprocess.Popen[str]) -> int:
+        if proc.stdin is None:
+            self._write("error: could not grab a handle to stdin\n")
+            return -1
+        if proc.stdout is None:
+            self._write("error: could not grab a handle to stdout\n")
+            return -1
 
         # send input to command's stdin
         if self.command.input is not None:
-            self.proc.stdin.write(self.command.input + "\n")
-            self.proc.stdin.flush()
+            proc.stdin.write(self.command.input + "\n")
+            proc.stdin.flush()
 
         # close stdin unless instructed not to
         if not self.command.no_close_stdin:
-            self.proc.stdin.close()
+            proc.stdin.close()
 
         # poll process for output
-        fileno = self.proc.stdout.fileno()
+        fileno = proc.stdout.fileno()
         while line := os.read(fileno, MAX_READ_BUFFER):
-            self.write(line)
+            self._write(line)
 
-        # ensure process is killed
-        self.proc.wait()
+        # ensure process is terminated and write output code to buffer
+        return proc.wait()
 
-        # write output code to buffer
-        ret = self.proc.poll()
-        self.write(f"** Process exited with status code {ret} **")
-
-    def write(self, data: str | bytes):
+    def _write(self, data: str | bytes):
         if isinstance(data, bytes):
             data = data.decode(self.command.charset, errors="replace")
         with self.lock:
             self.buf.push(data)
-        self.flush()
+        self._flush()
 
-    def terminate(self) -> Callable[[], Any]:
+    def _clear(self):
         with self.lock:
-            self.win = None
-        if self.proc != None:
-            self.proc.kill()
-            return self.proc.wait
-        return lambda: None
+            self.buf.reset()
 
-    def flush(self):
+    def _flush(self):
         with self.lock:
             if self.win is None:
                 return
@@ -126,15 +157,15 @@ class Runner:
                         self.command.padding.top + row,
                         self.command.padding.left + col,
                     )
-                    debug(
-                        "trying to add char '" + char.data + "' with attr",
-                        attr(self.colour_manager),
-                        "to position row =",
-                        row,
-                        "and col =",
-                        col,
-                        name=self.command.name,
-                    )
-                    self.win.addch(char.data, attr(self.colour_manager))
+                    try:
+                        self.win.addch(char.data, attr(self.colour_manager))
+                    except curses.error:
+                        # trying to write to the bottom-right corner
+                        # raises an error after the character is added
+                        # https://docs.python.org/3/library/curses.html#curses.window.addch
+                        if row == self.buf.rows - 1 and col == self.buf.cols - 1:
+                            pass
+                        else:
+                            raise
             self.win.noutrefresh()
         self.doupdate()
