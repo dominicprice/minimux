@@ -4,7 +4,7 @@ from typing import Self
 
 from pyte.screens import Char
 
-from minimux.colour import Colour, DefaultColour, ColourManager
+from minimux.colour import Colour, ColourManager, DefaultColour
 from minimux.utils import combine
 
 

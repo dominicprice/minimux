@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
-from minimux.colour import Colour, DefaultColour
 import minimux.utils as utils
 from minimux.attr import Attr
+from minimux.colour import Colour, DefaultColour
 from minimux.padding import Padding
 
 
@@ -14,7 +14,6 @@ from minimux.padding import Padding
 class Config:
     title: str | None
     content: "Config.Element"
-    background: "list[Config.Command]"
     sep_attr: Attr
     title_attr: Attr
 
@@ -47,7 +46,6 @@ class Config:
         main = parser["main"]
         title = main.pop("title", None)
         content = parser.create_panels(main, "", Attr())
-        background = parser.create_background(main)
         base_attr = parser.parse_attrs(main)
         sep_attrs = base_attr
         if "seperator" in parser:
@@ -56,7 +54,7 @@ class Config:
         if "title" in parser:
             title_attrs = base_attr | parser.parse_attrs(parser["title"])
 
-        return cls(title, content, background, sep_attrs, title_attrs)
+        return cls(title, content, sep_attrs, title_attrs)
 
     @classmethod
     def from_file(cls, f: TextIO, cwd: Path) -> "Config":
@@ -91,13 +89,6 @@ class MiniMuxConfigParser(configparser.ConfigParser):
             return self.parse_panel(section, prefix, default_attr)
         else:
             raise ValueError("command or panels must be specified")
-
-    def create_background(
-        self,
-        section: "configparser.SectionProxy",
-    ) -> list[Config.Command]:
-        sections = section.getlist("background", [])
-        return [self.parse_command(section, "", Attr()) for section in sections]
 
     def parse_command(
         self,

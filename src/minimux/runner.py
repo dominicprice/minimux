@@ -1,9 +1,9 @@
 import atexit
-import time
 import curses
 import os
 import subprocess
 import threading
+import time
 from typing import Callable
 
 from minimux.attr import Attr
@@ -28,6 +28,7 @@ class Runner:
         self.colour_manager = colour_manager
         self.buf = Buffer(0, 0, command.tabsize)
         self._stopped = threading.Event()
+        self.err: Exception | None = None
         self.lock = threading.Lock()
 
     def init(self, stdscr: "curses.window", bounds: Range2d):
@@ -50,16 +51,31 @@ class Runner:
             )
         self._flush()
 
-    def start(self):
+    def start(self) -> Callable[[], Exception | None]:
         "Start the runner in a background thread, returns immediately"
-        t = threading.Thread(target=self._run, daemon=True)
+
+        def run_safe():
+            try:
+                self.run()
+            except Exception as e:
+                self.err = e
+            except:
+                self.err = RuntimeError("unhandled error")
+
+        t = threading.Thread(target=run_safe)
         t.start()
 
+        def join():
+            t.join(5)
+            return self.err
+
+        return join
+
     def stop(self):
-        "Terminate the running process"
         self._stopped.set()
 
-    def _run(self):
+    def run(self):
+        "Start the runner until the process exits"
         self._stopped.clear()
         next_launch = time.time()
 

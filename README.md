@@ -139,7 +139,7 @@ title = My App Development Server
 panels = frontend,api,database
 ```
 
-Now suppose that frontend outputs far more than the other two
+Now suppose that the frontend outputs far more than the other two
 programs, and we wish to dedicate more space to it. We can start by
 adding a `weight` option to it, which will alter the ratio of how the
 space is divided:
@@ -174,6 +174,27 @@ panels = frontend,backend
 
 And we get the frontend on the left hand side of the terminal, and the
 two other programs on top of each other on the right hand side.
+
+We might have a program which we want to regularly view the output of,
+like what the `watch` command does. We can get a program to run at a
+regular interval by passing the `watch` option to it, which denontes how
+many seconds should pass before each time it is run. Let us update the
+database into a section and give it the normal `dev` target to run it, but
+also run the `status` command at a regular interval:
+
+```
+[database]
+panels=database-status,database-run
+
+[database-run]
+title = Database Runner
+command = make -C database dev
+
+[database-status]
+title = Database Status
+command = make -C database status
+watch = 5
+```
 
 We might want to make some of the commands stand out by changing their
 background colour. To do this we can add the `bg` option to a command or
@@ -255,6 +276,16 @@ Options which are marked with an asterisk are required for that section.
   * `padding: int | int,int | int,int,int,int` Padding around command
     output. Either one value for all sides, x value followed by y
     value or top, right, bottom and left values
+  * `input: string` A string to passed as stdin to the program
+  * `no_close_stdin` If set to `true`, then the stdin of the program will not be
+    closed. This is necessary for long-running programs which halt when stdin
+	is closed (the main candidate being `tailwindcss`)
+  * `charset: string` The charset to use to decode the program's output
+  * `cwd: string` The directory from which to launch the program
+  * `watch: int` If set to a positive integer, the program will be run at a regular
+    interval given in seconds by this option. If the program runs longer than this
+	interval, it will be killed and restarted
+  * `tabsize: int` The distance between tabstops in the rendered output
   * `...Element`
 * `Panel` A 1D arrangement of elements
   * `panels: list`* A comma separated list of section names denoting

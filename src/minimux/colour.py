@@ -2,6 +2,7 @@ import curses
 import re
 from dataclasses import dataclass
 from typing import Self
+
 from minimux.utils import Counter, UniqueDict
 
 re_hexcolour = re.compile(r"#?([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})([A-Fa-f0-9]{1,2})")

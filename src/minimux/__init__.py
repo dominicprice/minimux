@@ -32,15 +32,14 @@ class MiniMux:
         curses.use_default_colors()
 
         self.runners = self.get_runners(self.config.content)
-        for runner in self.runners.values():
-            runner.start()
-        self.init()
+        self.joins = [runner.start() for runner in self.runners.values()]
+        self.create_windows()
 
         try:
             # handle user input
             while True:
                 if self.stdscr.getch() == curses.KEY_RESIZE:
-                    self.init()
+                    self.create_windows()
         except KeyboardInterrupt:
             # keyboard interrupts are a normal way to exit
             pass
@@ -56,6 +55,18 @@ class MiniMux:
             self.stdscr.addstr("Terminating...".center(cols))
             self.stdscr.refresh()
 
+            # join all threads, collecting errors
+            errors = []
+            for join in self.joins:
+                if err := join():
+                    errors.append(err)
+
+            # print errors and exit with non-zero status code
+            if len(errors) > 0:
+                for err in errors:
+                    print(err)
+                exit(1)
+
     def get_runners(self, content: Config.Element) -> dict[str, Runner]:
         if isinstance(content, Config.Panel):
             res: dict[str, Runner] = {}
@@ -68,10 +79,14 @@ class MiniMux:
             raise TypeError
 
     def doupdate(self):
+        """
+        Call curses.doupdate() protected by a mutex so that it is
+        safe to call from multiple threads
+        """
         with self.lock:
             curses.doupdate()
 
-    def init(self):
+    def create_windows(self):
         rows, cols = self.stdscr.getmaxyx()
         self.stdscr.clear()
 
