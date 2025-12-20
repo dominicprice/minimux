@@ -8,8 +8,8 @@ from minimux.range import Range, Range2d
 from minimux.runner import Runner
 from minimux.utils import char_eq
 
-__version__ = "1.4.0"
-__version_info__ = (1, 4, 0)
+__version__ = "2.0.0"
+__version_info__ = (2, 0, 0)
 __author__ = "Dominic Price"
 
 
