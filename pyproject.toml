@@ -1,6 +1,6 @@
 [project]
 name = "minimux"
-version = "1.4.0"
+version = "2.0.0"
 description = "A lightweight non-interactive terminal multiplexer."
 authors = [
     {name = "Dominic Price",email = "dominicprice@outlook.com"}
