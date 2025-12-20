@@ -3,6 +3,4 @@ dev:
 	@echo "Starting the api"
 	@echo "INFO: started"
 	@echo "WARN: this is a development api"
-	@echo "FATAL: an unrecoverable error occurred!"
-	@sleep 1s
-	@false
+	@while true; do echo "$$(date) handling request..."; sleep "$$(( RANDOM % 5 + 2 ))s"; done

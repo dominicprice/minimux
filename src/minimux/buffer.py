@@ -1,37 +1,57 @@
-import threading
-from collections import deque
 from typing import Generator
 
-from minimux.rules import Rule
+import pyte
+import pyte.modes
+from pyte.screens import Char
+
+BUFFER_MAX_SIZE = 10000
 
 
 class Buffer:
+    """
+    Holds lines of output of a command. Only enough lines to fill the
+    height of the output space (maxrows) are kept, and lines are split
+    so that each line is at most maxcols in length
+    """
+
     def __init__(
         self,
         maxcols: int,
         maxrows: int,
-        rules: dict[Rule, int] | None = None,
+        tabsize: int,
     ):
-        self.buf: deque[tuple[str, int]] = deque(maxlen=maxrows)
-        self.maxcols = maxcols
-        self.rules = rules if rules is not None else {}
-        self.lock = threading.Lock()
+        self.buf: str = ""
+        self.tabsize = tabsize
+
+        # virtual terminal
+        self.screen = pyte.Screen(maxcols, maxrows)
+        self.stream = pyte.Stream()
+        self.stream.attach(self.screen)
+        self.reset()
+
+    @property
+    def rows(self) -> int:
+        return self.screen.lines
+
+    @property
+    def cols(self) -> int:
+        return self.screen.columns
 
     def push(self, data: str):
-        with self.lock:
-            if self.maxcols == 0:
-                return
+        "appends data to the buffer"
+        self.buf += data
+        if len(self.buf) > BUFFER_MAX_SIZE:
+            self.buf = self.buf[len(self.buf) - BUFFER_MAX_SIZE :]
+        self.stream.feed(data)
 
-            attr = 0
-            for rule, a in self.rules.items():
-                if rule.matches(data):
-                    attr = a
-                    break
-
-            for line in data.splitlines(keepends=False):
-                while len(line) > 0:
-                    b, line = line[: self.maxcols], line[self.maxcols :]
-                    self.buf.append((b, attr))
+    def reset(self, clear_buffer: bool = True):
+        "clears the buffer of all data"
+        if clear_buffer:
+            self.buf = ""
+        self.screen.reset()
+        self.screen.mode.add(pyte.modes.LNM)
+        ntabs = self.screen.columns // self.tabsize
+        self.screen.tabstops = set(i * self.tabsize for i in range(ntabs))
 
     def resize(
         self,
@@ -39,17 +59,12 @@ class Buffer:
         maxcols: int | None = None,
         maxrows: int | None = None,
     ):
-        with self.lock:
-            if maxcols is not None:
-                self.maxcols = maxcols
-            if maxrows is not None:
-                self.maxrows = maxrows
+        "resizes the buffer"
+        self.screen.resize(maxrows, maxcols)
+        self.reset(False)
+        self.stream.feed(self.buf)
 
-            buf: deque[tuple[str, int]] = deque(maxlen=maxrows)
-            for line in self.buf:
-                buf.append((line[0][: self.maxcols], line[1]))
-            self.buf = buf
-
-    def __iter__(self) -> Generator[tuple[str, int], None, None]:
-        with self.lock:
-            yield from self.buf
+    def lines(self) -> Generator[list[Char], None, None]:
+        for row in range(self.screen.lines):
+            bufline = self.screen.buffer[row]
+            yield [bufline[col] for col in range(self.screen.columns)]

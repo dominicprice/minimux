@@ -621,6 +621,21 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pyte"
+version = "0.8.2"
+description = "Simple VTXXX-compatible terminal emulator."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "pyte-0.8.2-py3-none-any.whl", hash = "sha256:85db42a35798a5aafa96ac4d8da78b090b2c933248819157fc0e6f78876a0135"},
+    {file = "pyte-0.8.2.tar.gz", hash = "sha256:5af970e843fa96a97149d64e170c984721f20e52227a2f57f0a54207f08f083f"},
+]
+
+[package.dependencies]
+wcwidth = "*"
+
+[[package]]
 name = "pytest"
 version = "8.3.5"
 description = "pytest: simple powerful testing with Python"
@@ -829,7 +844,7 @@ version = "0.2.13"
 description = "Measures the displayed width of unicode strings in a terminal"
 optional = false
 python-versions = "*"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "wcwidth-0.2.13-py2.py3-none-any.whl", hash = "sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859"},
     {file = "wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5"},
@@ -838,4 +853,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "f9de01ac6d68b4abec654a199ef726be8a3a64f75c8ca6fa17f2e17682f19a7b"
+content-hash = "9a6298292292831ba81a7cf5432ef6e1110c42407ef31440869870b8eb09def9"

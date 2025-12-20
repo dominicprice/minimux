@@ -5,7 +5,8 @@ A lightweight non-interactive terminal multiplexer.
 ## What is minimux?
 
 Minimux allows you to run multiple programs in a single terminal
-window. If this is useful for you, you probably already know it, but here are some reasons why it might be useful anyway:
+window. If this is useful for you, you probably already know it, but
+here are some reasons why it might be useful anyway:
 
 * You are developing a program which requires running several
   different binaries at the same time, and you want to be able to
@@ -53,8 +54,24 @@ Install using the python package manager of your choice, if you have
 
 ## Usage
 
-Simply run `minimux CONFIG_FILE`; the configuration file is described
-in the next section
+```
+Usage: minimux [OPTIONS] [CONFIG_FILE]
+
+Options:
+  -v, --version              Show the version and exit.
+  -d, --directory DIRECTORY  The directory to set as the cwd for commands.
+                             Additionally, if CONFIG_FILE is not set and there
+                             is no minimux.ini file in the current directory,
+                             this directory will be searched for a minimux.ini
+                             file to use
+  -g, --debug                Display a full traceback when an exception is
+                             thrown
+  --help                     Show this message and exit.
+```
+
+The most common way to invoke minimux is to simply run `minimux` in a
+directory which contains a `minimux.ini` configuration file in it. The
+configuration file is described in the next section.
 
 ## The Configuration File
 
@@ -66,21 +83,19 @@ The configuration file is described here in two ways
 
 ### Guided tutorial
 
-In the `example` directory of this repo you'll find a variety of `.ini`
-config files and three subdirectories `api`, `database` and
-`frontend`. Each directory contains a makefile with the single target
-`dev` which spit out some totally legit looking log messages when run.
-
-You can run the example configs now by `cd`ing into that directory and
-running `minimux CONFIG_FILE`. In this tutorial we will start with a
-blank config file and work our way up to the `tutorial.ini` config.
+In the `examples` directory of this repo you'll find a variety of
+example configurations. You can run the example configs now by `cd`ing
+into one of the subdirectories and running `minimux`. In this tutorial
+we will start with a blank config file and work our way up to the
+`tutorial` directory.
 
 The problem we are trying to solve is this: to test our app locally we
 need to run the frontend, api and database at the same time. We want
 to do this all with one simple command, and to be able to inspect the
 logs of all three programs in real time.
 
-Let us start with a blank `app.ini`. The simplest way to solve the problem above is to write a config as follows:
+Let us start with a blank `app.ini`. The simplest way to solve the
+problem above is to write a config as follows:
 
 ```
 [main]
@@ -124,7 +139,7 @@ title = My App Development Server
 panels = frontend,api,database
 ```
 
-Now suppose that frontend outputs far more than the other two
+Now suppose that the frontend outputs far more than the other two
 programs, and we wish to dedicate more space to it. We can start by
 adding a `weight` option to it, which will alter the ratio of how the
 space is divided:
@@ -160,68 +175,31 @@ panels = frontend,backend
 And we get the frontend on the left hand side of the terminal, and the
 two other programs on top of each other on the right hand side.
 
-As our programs are producing (totally real) logs, we might want to
-colorize the output depending on what is being output, for instance
-showing errors in red. To do this we can add rules to the
-commands. First, we add a new section:
+We might have a program which we want to regularly view the output of,
+like what the `watch` command does. We can get a program to run at a
+regular interval by passing the `watch` option to it, which denontes how
+many seconds should pass before each time it is run. Let us update the
+database into a section and give it the normal `dev` target to run it, but
+also run the `status` command at a regular interval:
 
 ```
-[rule.warn]
-literal = warn
-ignorecase = true
-fg = yellow
+[database]
+panels=database-status,database-run
+
+[database-run]
+title = Database Runner
+command = make -C database dev
+
+[database-status]
+title = Database Status
+command = make -C database status
+watch = 5
 ```
 
-The name of the section `rule.warn` is totally arbitrary, here I have
-just started its name with `rule.` to make it clear that it is
-defining a rule, but we could just have validly named it `warn`.
-
-The `literal` option specifies a literal string which we want to match
-for the rule to apply. `ignorecase` specifies that the match should be
-case insensitive, and `fg` specifies the foreground color we want
-lines we match to have. As well as `fg` there are some other
-attributes which we can set, see the `Attr` type in the reference at
-the bottom of the readme for a list of them.
-
-To register the rules with one of our commands, we reference it in the
-`rules` option:
-
-```
-[api]
-title = API
-command = make -C api dev
-rules = rule.warn
-```
-
-Now when we run minimux, we should see any log lines from the api
-with the word `warn` in them are displayed in yellow.
-
-There may be a set of common rules we wish to apply to all commands. Lets also add a rule for highlighting errors, which we define as any lines with the word `error` or `fatal` in them:
-
-```
-[rule.error]
-regex = error|fatal
-ignorecase = true
-fg = rgb(200, 0, 0)
-```
-
-Instead of a literal rule, we have used a regex instead for the error
-message as there are multiple alternatives we wish to match. We have
-also specified the colour as an rgb value instead of a name.
-
-To make these rules apply to all commands by default, we add them to a special section:
-
-```
-[default]
-rules = rules.warn,rules.error
-```
-
-Now any command which doesn't explicitly set the `rules` option will
-default to applying both `rules.warn` and `rules.error`. In fact, any
-option you specify in the `default` section will work like this, but
-it is most useful for specifying rules.
-
-We might also want to make some of the commands stand out by changing their background colour. To do this we can add the `bg` option to a command or panel. Let's make the frontend have a blue background and the backend have a green background:
+We might want to make some of the commands stand out by changing their
+background colour. To do this we can add the `bg` option to a command or
+panel. Let's make the frontend have a blue background and the backend
+have a green background:
 
 ```
 [frontend]
@@ -241,8 +219,7 @@ the two sides of the window.
 Any attributes which are applied to an element are are inherited by
 any children of that element, so although we applied the green
 background colour to the backend panel, bot the api and database
-commands inherited it. Similarly, the warn and error rules inherited
-the green background colour too.
+commands inherited it.
 
 Finally, there are two other special sections, `title` and `seperator`
 which we can also add attributes to. The `title` section will theme
@@ -268,18 +245,13 @@ configured to do!
 
 ### Complete reference
 
-#### Well-known sections
-
-These sections are known by the config parser and will be handled in a
-special manner
-* `[main]: Panel` The entrypoint of the config which defines how the
-  top level window will be split up
-* `[seperator]: Attr` Defines how separators are displayed
-* `[title]: Attr` Defines how the main window title is displayed
+The following syntax is used:
+* `x: T` denotes that `x` is of type `T`
+* `...T` denotes that all options of type `T` are available
 
 #### Section types
 
-This shows the complete list of options available to different section
+This enumerates the complete list of options available to different section
 types. Options ending with an ellipse denote that all the options for
 another section type are permitted.
 
@@ -296,36 +268,45 @@ Options which are marked with an asterisk are required for that section.
   * `underline: bool` Display with an underline
 * `Element` A window in the output
   * `weight: int` The number of divisions of space the element should take up
-  * `attrs...: Attr` Attributes to apply to the element
+  * `...Attr`
 * `Command` A command to tail the output of
-  * `title: string` A title to be displayed above the output of the command
   * `command: string`* The command to run
-  * `rules: list` A comma separated list of the section names denoting
-    rules to apply
+  * `title: string` A title to be displayed above the output of the command
   * `title_attr: string` Name of the section defining the attributes of the title
-  * `padding: int | int,int | int,int,int,int` Padding around command output. Either one value for all sides, x value followed by y value or top, right, bottom and left values
-  * `element...: Element` Element options
+  * `padding: int | int,int | int,int,int,int` Padding around command
+    output. Either one value for all sides, x value followed by y
+    value or top, right, bottom and left values
+  * `input: string` A string to passed as stdin to the program
+  * `no_close_stdin` If set to `true`, then the stdin of the program will not be
+    closed. This is necessary for long-running programs which halt when stdin
+	is closed (the main candidate being `tailwindcss`)
+  * `charset: string` The charset to use to decode the program's output
+  * `cwd: string` The directory from which to launch the program
+  * `watch: int` If set to a positive integer, the program will be run at a regular
+    interval given in seconds by this option. If the program runs longer than this
+	interval, it will be killed and restarted
+  * `tabsize: int` The distance between tabstops in the rendered output
+  * `...Element`
 * `Panel` A 1D arrangement of elements
-  * `vertical: bool` If true, subpanels are stacked vertically
   * `panels: list`* A comma separated list of section names denoting
     the subpanels to display
-  * `element...: Element` Element options 
-* `LiteralRule` A rule based on substring matching
-  * `literal: string`* The substring to match
-  * `ignorecase: bool` If true then the matching is performed case-insensitive
-  * `attrs...: Attr` Attributes to apply to the matched lines
-* `RegexRule` A rule based on regex matching
-  * `regex: string`* The regex to match
-  * `ascii: bool` If true then character classes only match ascii characters
-  * `ignorecase: bool` If true then the matching is performed case-insensitive
-  * `multiline: bool` If true then the `^` symbol also matches linebreaks
-  * `dotall: bool` If true then the `.` symbol also matches newlines
-  * `verbose: bool` Allows writing verbose regexes
-  * `attrs...: Attr` Attributes to apply to the matched lines
+  * `vertical: bool` If true, subpanels are stacked vertically
+  * `...Element`
+
+#### Well-known sections
+
+These sections are known by the config parser and will be handled in a
+special manner
+
+* `[main]: Panel` The entrypoint of the config which defines how the
+  top level window will be split up
+* `[seperator]: Attr` Defines how separators are displayed
+* `[title]: Attr` Defines how the main window title is displayed
 
 #### Colours
 
 Colours can be defined in any of the following ways:
+
 * Using a builtin colour name: `black`, `blue`, `cyan`, `green`,
   `magenta`, `red`, `white` or `yellow`
 * Using a hex code, e.g. `#fa346f`
